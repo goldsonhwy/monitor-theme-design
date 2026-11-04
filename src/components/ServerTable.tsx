@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { Node } from "@/lib/api"
-import { daysUntil, distro, duration, FOREVER, monthUsage, percent, rateM, trafficG, trafficPair } from "@/lib/format"
+import { daysUntil, duration, FOREVER, monthUsage, percent, rateM, trafficG, trafficPair, dayUsage } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -37,23 +37,24 @@ function Expiry({ node }: { node: Node }) {
 
 /**
  * Column widths and responsive folding.
- * On wide screens (max-w-7xl), all 12 columns are comfortably displayed.
+ * On wide screens (max-w-7xl), all 13 columns are comfortably displayed.
  * On smaller screens, secondary columns gracefully hide.
  */
 const COL = {
   status: "w-12 text-center @max-3xl:w-[6%]",
   name: "min-w-28 max-w-56 truncate text-left font-medium @max-3xl:w-[19%] @max-3xl:max-w-none @max-3xl:min-w-0 @max-sm:w-[22%]",
   location: "w-16 text-center @max-3xl:w-[7%] @max-sm:hidden",
-  os: "w-28 text-center @max-5xl:hidden",
+  os: "w-12 text-center @max-5xl:hidden",
   uptime: "w-20 text-center @max-3xl:hidden",
   expiry: "w-20 text-center @max-5xl:hidden",
   load: "w-16 text-center @max-3xl:hidden",
   speed: "min-w-28 text-center @max-3xl:w-[15%] @max-3xl:min-w-0 @max-sm:w-[16%] overflow-hidden",
   bar: "w-20 min-w-16 text-center @max-3xl:w-[10%] @max-3xl:min-w-0 @max-sm:w-[11%] overflow-hidden",
   traffic: "w-28 min-w-22 text-center @max-3xl:w-[23%] @max-3xl:min-w-0 @max-sm:w-[23%] overflow-hidden",
+  today: "w-20 min-w-16 text-center @max-3xl:hidden",
 }
 
-type SortField = "name" | "uptime" | "load" | "speed" | "cpu" | "mem" | "disk" | "traffic"
+type SortField = "name" | "uptime" | "load" | "speed" | "cpu" | "mem" | "disk" | "traffic" | "today"
 type SortOrder = "asc" | "desc"
 
 function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): Node[] {
@@ -98,6 +99,9 @@ function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): No
       case "traffic":
         res = monthUsage(a) - monthUsage(b)
         break
+      case "today":
+        res = dayUsage(a) - dayUsage(b)
+        break
     }
 
     return order === "desc" ? -res : res
@@ -108,6 +112,7 @@ function Row({ node }: { node: Node }) {
   const [open, setOpen] = useState(false)
   const m = node.online ? node.metrics : null
   const traffic = monthUsage(node)
+  const today = dayUsage(node)
   const toggle = () => setOpen((o) => !o)
 
   return (
@@ -135,9 +140,8 @@ function Row({ node }: { node: Node }) {
         </TableCell>
         <TableCell className={COL.location}><Flag code={node.country} /></TableCell>
         <TableCell className={COL.os}>
-          <span className="inline-flex items-center justify-center gap-1.5">
+          <span className="inline-flex items-center justify-center">
             <OsIcon os={node.os} />
-            <span className="truncate">{distro(node.os) || "—"}</span>
           </span>
         </TableCell>
         <TableCell className={cn(COL.uptime, "tnum")}>{m ? duration(m.uptime) : "—"}</TableCell>
@@ -166,6 +170,7 @@ function Row({ node }: { node: Node }) {
         <TableCell className={COL.bar}><Bar pct={m ? m.cpu : null} /></TableCell>
         <TableCell className={COL.bar}><Bar pct={m ? percent(m.mem_used, m.mem_total) : null} /></TableCell>
         <TableCell className={COL.bar}><Bar pct={m ? percent(m.disk_used, m.disk_total) : null} /></TableCell>
+        <TableCell className={cn(COL.today, "tnum")}>{trafficG(today)}</TableCell>
         <TableCell
           className={COL.traffic}
           title={`本期已用 ${node.traffic_limit > 0 ? `${trafficPair(traffic, node.traffic_limit)}（${((traffic / node.traffic_limit) * 100).toFixed(1)}%）` : `${trafficG(traffic)} · 无流量配额`}`}
@@ -178,7 +183,7 @@ function Row({ node }: { node: Node }) {
       </TableRow>
       {open && (
         <TableRow className="border-b bg-muted/25 hover:bg-muted/25">
-          <TableCell colSpan={12} className="p-0! text-left whitespace-normal">
+          <TableCell colSpan={13} className="p-0! text-left whitespace-normal">
             <RowDetails node={node} />
           </TableCell>
         </TableRow>
@@ -287,7 +292,8 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
     ["bar", "CPU", "cpu"],
     ["bar", "内存", "mem"],
     ["bar", "硬盘", "disk"],
-    ["traffic", "流量", "traffic"],
+    ["today", "今日", "today"],
+    ["traffic", "本月", "traffic"],
   ]
 
   return (
@@ -448,7 +454,7 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
           <TableBody className="[&_td]:px-2 [&_td]:py-2 @max-3xl:[&_td]:px-1 @max-3xl:[&_td:first-child]:pl-2 @max-3xl:[&_td:last-child]:pr-2">
             {filteredNodes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="py-12 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={13} className="py-12 text-center text-sm text-muted-foreground">
                   没有匹配的服务器
                 </TableCell>
               </TableRow>
@@ -491,7 +497,7 @@ export function ServerTableSkeleton() {
               <Skeleton className="size-2.5 rounded-full shrink-0" />
               <Skeleton className="h-4 w-32 shrink-0" />
               <Skeleton className="h-4 w-12 shrink-0 @max-sm:hidden" />
-              <Skeleton className="h-4 w-20 shrink-0 @max-5xl:hidden" />
+              <Skeleton className="h-4 w-8 shrink-0 @max-5xl:hidden" />
               <Skeleton className="h-4 w-16 shrink-0 @max-3xl:hidden" />
               <Skeleton className="h-4 w-16 shrink-0 @max-5xl:hidden" />
               <Skeleton className="h-4 w-12 shrink-0 @max-3xl:hidden" />
@@ -499,6 +505,7 @@ export function ServerTableSkeleton() {
               <Skeleton className="h-2 w-16 shrink-0" />
               <Skeleton className="h-2 w-16 shrink-0" />
               <Skeleton className="h-2 w-16 shrink-0" />
+              <Skeleton className="h-2 w-12 shrink-0 @max-3xl:hidden" />
               <Skeleton className="h-2 w-24 shrink-0" />
             </div>
           ))}

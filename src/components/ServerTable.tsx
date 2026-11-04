@@ -8,8 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import type { Node, PingProbe } from "@/lib/api"
+import type { Node } from "@/lib/api"
 import { daysUntil, duration, FOREVER, monthUsage, percent, rateM, trafficG, trafficPair } from "@/lib/format"
+import { navigate, setChartHash } from "@/lib/route"
 import { cn } from "@/lib/utils"
 
 function Bar({ pct, label }: { pct: number | null; label?: string }) {
@@ -85,6 +86,33 @@ function lossColor(loss: number | null): string {
   return "text-red-600"
 }
 
+/** Speed color: white → green (0 → 100MB/s) */
+function speedColorClass(value: number): string {
+  if (value <= 0) return "text-muted-foreground"
+  if (value >= 100_000_000) return "text-emerald-500"
+  // Interpolate from white/gray to green
+  const pct = value / 100_000_000
+  if (pct < 0.25) return "text-gray-400"
+  if (pct < 0.5) return "text-gray-300"
+  if (pct < 0.75) return "text-emerald-300"
+  return "text-emerald-400"
+}
+
+/** Traffic color: white → green based on thresholds
+ *  Day: 0 → 100 GB
+ *  Month: 0 → 5000 GB
+ */
+function trafficColorClass(bytes: number, isMonth: boolean): string {
+  const max = isMonth ? 5000 * 1024 * 1024 * 1024 : 100 * 1024 * 1024 * 1024
+  if (bytes <= 0) return "text-muted-foreground"
+  if (bytes >= max) return "text-emerald-500"
+  const pct = bytes / max
+  if (pct < 0.25) return "text-gray-400"
+  if (pct < 0.5) return "text-gray-300"
+  if (pct < 0.75) return "text-emerald-300"
+  return "text-emerald-400"
+}
+
 function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): Node[] {
   if (!field) return [...nodes].sort((a, b) => a.sort - b.sort || a.id - b.id)
 
@@ -115,21 +143,15 @@ function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): No
         break
       }
       case "ping_telecom": {
-        const pa = a.ping?.["电信"]?.latest ?? -1
-        const pb = b.ping?.["电信"]?.latest ?? -1
-        res = pa - pb
+        res = (a.latency_telecom ?? -1) - (b.latency_telecom ?? -1)
         break
       }
       case "ping_mobile": {
-        const pa = a.ping?.["移动"]?.latest ?? -1
-        const pb = b.ping?.["移动"]?.latest ?? -1
-        res = pa - pb
+        res = (a.latency_mobile ?? -1) - (b.latency_mobile ?? -1)
         break
       }
       case "ping_unicom": {
-        const pa = a.ping?.["联通"]?.latest ?? -1
-        const pb = b.ping?.["联通"]?.latest ?? -1
-        res = pa - pb
+        res = (a.latency_unicom ?? -1) - (b.latency_unicom ?? -1)
         break
       }
       case "speed": {
@@ -180,18 +202,17 @@ function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): No
   })
 }
 
-function PingCell({ probe }: { probe?: PingProbe }) {
-  const latency = probe?.latest ?? null
-  const loss = probe?.loss ?? null
-  const validLatency = latency !== null && latency >= 0 ? latency : null
+function PingCell({ latency, loss }: { latency?: number; loss?: number }) {
+  const validLatency = latency !== undefined && latency >= 0 ? latency : null
+  const validLoss = loss !== undefined && loss >= 0 ? loss : null
 
   return (
     <div className="flex flex-col items-center justify-center leading-none gap-0.5">
       <span className={cn("text-[11px] font-medium tabular-nums", latencyColor(validLatency))}>
         {validLatency !== null ? `${Math.round(validLatency)}` : "—"}
       </span>
-      <span className={cn("text-[10px] tabular-nums", lossColor(loss))}>
-        {loss !== null ? `${loss.toFixed(1)}%` : "—"}
+      <span className={cn("text-[10px] tabular-nums", lossColor(validLoss))}>
+        {validLoss !== null ? `${validLoss.toFixed(1)}%` : "—"}
       </span>
     </div>
   )
@@ -204,10 +225,6 @@ function Row({ node }: { node: Node }) {
   const ratio = calcRatio(node.day_tx, node.day_rx)
   const monthRatio = calcRatio(node.month_tx, node.month_rx)
   const toggle = () => setOpen((o) => !o)
-
-  const pingTelecom = node.ping?.["电信"]
-  const pingMobile = node.ping?.["移动"]
-  const pingUnicom = node.ping?.["联通"]
 
   return (
     <>
@@ -240,10 +257,10 @@ function Row({ node }: { node: Node }) {
         </TableCell>
         <TableCell className={cn(COL.uptime, "tnum")}>{m ? duration(m.uptime) : "—"}</TableCell>
         <TableCell className={cn(COL.expiry, "tnum")}><Expiry node={node} /></TableCell>
-        <TableCell className={cn(COL.ping)}><PingCell probe={pingTelecom} /></TableCell>
-        <TableCell className={cn(COL.ping)}><PingCell probe={pingMobile} /></TableCell>
-        <TableCell className={cn(COL.ping)}><PingCell probe={pingUnicom} /></TableCell>
-        <TableCell className={COL.speed}>
+        <TableCell className={cn(COL.ping)} onClick={(e) => { e.stopPropagation(); setChartHash("ping"); navigate(`/node/${node.id}#chart=ping`) }}><PingCell latency={node.latency_telecom} loss={node.loss_telecom} /></TableCell>
+        <TableCell className={cn(COL.ping)} onClick={(e) => { e.stopPropagation(); setChartHash("ping"); navigate(`/node/${node.id}#chart=ping`) }}><PingCell latency={node.latency_mobile} loss={node.loss_mobile} /></TableCell>
+        <TableCell className={cn(COL.ping)} onClick={(e) => { e.stopPropagation(); setChartHash("ping"); navigate(`/node/${node.id}#chart=ping`) }}><PingCell latency={node.latency_unicom} loss={node.loss_unicom} /></TableCell>
+        <TableCell className={COL.speed} onClick={(e) => { e.stopPropagation(); setChartHash("net"); navigate(`/node/${node.id}#chart=net`) }}>
           {m ? (
             <div className="inline-flex items-center justify-center text-xs @max-3xl:flex @max-3xl:flex-col @max-3xl:items-center @max-3xl:gap-0.5 @max-3xl:text-[9px] @max-3xl:leading-none">
               <span className="inline-flex items-center gap-0.5 leading-none">
@@ -263,9 +280,9 @@ function Row({ node }: { node: Node }) {
             </span>
           )}
         </TableCell>
-        <TableCell className={COL.bar}><Bar pct={m ? m.cpu : null} /></TableCell>
-        <TableCell className={COL.bar}><Bar pct={m ? percent(m.mem_used, m.mem_total) : null} /></TableCell>
-        <TableCell className={COL.bar}><Bar pct={m ? percent(m.disk_used, m.disk_total) : null} /></TableCell>
+        <TableCell className={COL.bar} onClick={(e) => { e.stopPropagation(); setChartHash("cpu"); navigate(`/node/${node.id}#chart=cpu`) }}><Bar pct={m ? m.cpu : null} /></TableCell>
+        <TableCell className={COL.bar} onClick={(e) => { e.stopPropagation(); setChartHash("mem"); navigate(`/node/${node.id}#chart=mem`) }}><Bar pct={m ? percent(m.mem_used, m.mem_total) : null} /></TableCell>
+        <TableCell className={COL.bar} onClick={(e) => { e.stopPropagation(); setChartHash("disk"); navigate(`/node/${node.id}#chart=disk`) }}><Bar pct={m ? percent(m.disk_used, m.disk_total) : null} /></TableCell>
         <TableCell className={cn(COL.day, "tnum")}>{trafficG(node.day_rx)}</TableCell>
         <TableCell className={cn(COL.day, "tnum")}>{trafficG(node.day_tx)}</TableCell>
         <TableCell className={cn(COL.ratio, "tnum")}>

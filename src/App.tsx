@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
-import { ArrowUp, ChartLine, House, Monitor, Moon, Palette, Sparkles, Sun, UserRound, type LucideIcon } from "lucide-react"
+import { ArrowUp, ChartLine, House, Monitor, Moon, Sparkles, Sun, UserRound, type LucideIcon } from "lucide-react"
 
 import { ServerTable, ServerTableSkeleton } from "@/components/ServerTable"
 import { Button } from "@/components/ui/button"
@@ -11,9 +11,6 @@ import { Link, useNodeRoute } from "@/lib/route"
 import { THEMES } from "@/lib/themes"
 import { loadConfig, saveConfig } from "@/lib/config"
 import { cn } from "@/lib/utils"
-// The name, author and repository the footer credits, read from the manifest
-// the panel reads, so the two never disagree.
-import theme from "../theme.json"
 
 type Me = { authed: boolean; github: boolean; site_name: string; public_page: boolean }
 
@@ -545,18 +542,11 @@ export default function App() {
         )}
       </main>
 
-      {/* Footer with matching measure */}
+      {/* Footer with visitor IP info */}
       <footer className="border-t border-border/60 bg-background/50">
-        <div className={cn(CONTAINER_CLASS, "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-5 text-xs text-muted-foreground")}>
-          <span>
-            {site} · Powered by{" "}
-            <a href="https://github.com/monitor-probe/monitor" target="_blank" rel="noreferrer" className="font-medium hover:text-foreground">
-              monitor
-            </a>
-          </span>
-          <a href={theme.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-foreground">
-            <Palette className="size-3.5" />
-            主题 {theme.name} · {theme.author}
+        <div className={cn(CONTAINER_CLASS, "flex flex-wrap items-center justify-center gap-x-4 gap-y-2 py-3 text-xs text-muted-foreground")}>
+          <a href="https://ippure.com" target="_blank" rel="noreferrer" title="点击查看IP信息" className="inline-flex items-center hover:opacity-80 transition-opacity">
+            <img src="https://my.ippure.com/v1/card" alt="访客IP信息卡片" className="h-6 w-auto rounded" />
           </a>
         </div>
       </footer>

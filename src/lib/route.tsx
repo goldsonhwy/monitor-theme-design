@@ -4,12 +4,6 @@ const read = () => {
   const match = location.pathname.match(/^\/node\/(\d+)/)
   return match ? Number(match[1]) : null
 }
-
-/**
- * The node `/node/{id}` names, or null on the list. The hub serves index.html for
- * any unknown path, so a reload or a shared link lands on the same page without a
- * server-side route.
- */
 export function useNodeRoute() {
   const [id, setId] = useState(read)
   useEffect(() => {
@@ -29,6 +23,31 @@ export function navigate(href: string) {
   history.pushState({}, "", href)
   dispatchEvent(new PopStateEvent("popstate"))
   scrollTo(0, 0)
+}
+
+/**
+ * Read the current chart hash parameter from URL.
+ * e.g. #chart=cpu → "cpu"
+ */
+export function getChartHash(): string | null {
+  const hash = location.hash
+  const match = hash.match(/chart=([^&]+)/)
+  return match ? match[1] : null
+}
+
+/**
+ * Set the chart hash parameter without navigating away.
+ */
+export function setChartHash(chart: string) {
+  const url = new URL(location.href)
+  url.hash = `chart=${chart}`
+  history.pushState({}, "", url.toString())
+}
+
+export function clearChartHash() {
+  const url = new URL(location.href)
+  url.hash = ""
+  history.pushState({}, "", url.toString())
 }
 
 /**

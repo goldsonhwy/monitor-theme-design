@@ -73,6 +73,13 @@ export type Node = {
   remark?: string
   /** Ping probe data keyed by task name (e.g. "电信", "移动", "联通") */
   ping?: Record<string, PingProbe>
+  /** Direct ping fields from hub */
+  latency_telecom?: number
+  latency_mobile?: number
+  latency_unicom?: number
+  loss_telecom?: number
+  loss_mobile?: number
+  loss_unicom?: number
 }
 
 class ApiError extends Error {

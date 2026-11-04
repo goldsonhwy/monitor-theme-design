@@ -15,6 +15,7 @@ import {
 } from "@/lib/format"
 import { fetchHistory, inRanges, LATENCY_HOURS, RANGES, type History, type Point, type Series } from "@/lib/history"
 import { knownPing, recordPing } from "@/lib/pings"
+import { getChartHash, setChartHash } from "@/lib/route"
 import { usePref } from "@/lib/prefs"
 import { cn } from "@/lib/utils"
 
@@ -497,9 +498,23 @@ const CHARTS = [
 
 export function NodeDetail({ node }: { node: Node }) {
   const [hours, setHours] = useState(6)
-  // Kept across nodes and visits: a reader comparing memory across a fleet
-  // should not have to pick memory on every node.
-  const [picked, setChart] = usePref<string>("chart", "cpu")
+  // Read chart from URL hash
+  const [picked, setChart] = useState<string>(() => {
+    const fromHash = getChartHash()
+    if (fromHash && CHARTS.some((c) => c.key === fromHash)) return fromHash
+    return "cpu"
+  })
+  // Sync with URL hash changes
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = getChartHash()
+      if (hash && CHARTS.some((c) => c.key === hash)) {
+        setChart(hash)
+      }
+    }
+    window.addEventListener("hashchange", handleHashChange)
+    return () => window.removeEventListener("hashchange", handleHashChange)
+  }, [])
   // Whether to offer the latency tab: what the chart learned from this node's
   // latest window, or until one arrives what earlier windows recorded. Tagged
   // with the node, since the picker swaps the node under this component rather
@@ -563,7 +578,10 @@ export function NodeDetail({ node }: { node: Node }) {
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-4">
         <Segmented
           value={chart}
-          onChange={setChart}
+          onChange={(val: string) => {
+            setChart(val)
+            setChartHash(val)
+          }}
           options={charts.map((c) => ({ value: c.key, label: c.label }))}
           label="图表"
           className="scrollbar-none max-w-full overflow-x-auto max-sm:[&>button]:px-2"

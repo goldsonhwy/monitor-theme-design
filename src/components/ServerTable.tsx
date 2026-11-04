@@ -9,12 +9,9 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { Node } from "@/lib/api"
-import { daysUntil, duration, FOREVER, monthUsage, percent, rateM, trafficG, trafficPair, dayUsage } from "@/lib/format"
+import { daysUntil, duration, FOREVER, monthUsage, percent, rateM, trafficG, trafficPair } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
-/**
- * The figure over its meter, as shadcn's stat tiles set them.
- */
 function Bar({ pct, label }: { pct: number | null; label?: string }) {
   const v = pct === null ? 0 : Math.min(100, Math.max(0, pct))
   return (
@@ -35,11 +32,6 @@ function Expiry({ node }: { node: Node }) {
   return <span className="text-foreground">{days} 天</span>
 }
 
-/**
- * Column widths and responsive folding.
- * On wide screens (max-w-7xl), all 13 columns are comfortably displayed.
- * On smaller screens, secondary columns gracefully hide.
- */
 const COL = {
   status: "w-12 text-center @max-3xl:w-[6%]",
   name: "min-w-28 max-w-56 truncate text-left font-medium @max-3xl:w-[19%] @max-3xl:max-w-none @max-3xl:min-w-0 @max-sm:w-[22%]",
@@ -47,14 +39,13 @@ const COL = {
   os: "w-12 text-center @max-5xl:hidden",
   uptime: "w-20 text-center @max-3xl:hidden",
   expiry: "w-20 text-center @max-5xl:hidden",
-  load: "w-16 text-center @max-3xl:hidden",
   speed: "min-w-28 text-center @max-3xl:w-[15%] @max-3xl:min-w-0 @max-sm:w-[16%] overflow-hidden",
   bar: "w-20 min-w-16 text-center @max-3xl:w-[10%] @max-3xl:min-w-0 @max-sm:w-[11%] overflow-hidden",
+  day: "w-20 min-w-16 text-center @max-3xl:hidden",
   traffic: "w-28 min-w-22 text-center @max-3xl:w-[23%] @max-3xl:min-w-0 @max-sm:w-[23%] overflow-hidden",
-  today: "w-20 min-w-16 text-center @max-3xl:hidden",
 }
 
-type SortField = "name" | "uptime" | "load" | "speed" | "cpu" | "mem" | "disk" | "traffic" | "today"
+type SortField = "name" | "location" | "os" | "uptime" | "expiry" | "speed" | "cpu" | "mem" | "disk" | "day_down" | "day_up" | "traffic"
 type SortOrder = "asc" | "desc"
 
 function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): Node[] {
@@ -69,12 +60,23 @@ function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): No
       case "name":
         res = a.name.localeCompare(b.name, "zh-CN")
         break
+      case "location":
+        res = (a.country || "").localeCompare(b.country || "", "zh-CN")
+        break
+      case "os":
+        res = (a.os || "").localeCompare(b.os || "", "zh-CN")
+        break
       case "uptime":
         res = (ma?.uptime ?? -1) - (mb?.uptime ?? -1)
         break
-      case "load":
-        res = (ma?.load[0] ?? -1) - (mb?.load[0] ?? -1)
+      case "expiry": {
+        const ea = a.expires_in !== undefined ? a.expires_in : daysUntil(a.expires_at)
+        const eb = b.expires_in !== undefined ? b.expires_in : daysUntil(b.expires_at)
+        const va = ea === null ? Infinity : ea
+        const vb = eb === null ? Infinity : eb
+        res = va - vb
         break
+      }
       case "speed": {
         const sa = ma ? ma.net_rx + ma.net_tx : -1
         const sb = mb ? mb.net_rx + mb.net_tx : -1
@@ -96,11 +98,14 @@ function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): No
         res = pa - pb
         break
       }
+      case "day_down":
+        res = a.day_rx - b.day_rx
+        break
+      case "day_up":
+        res = a.day_tx - b.day_tx
+        break
       case "traffic":
         res = monthUsage(a) - monthUsage(b)
-        break
-      case "today":
-        res = dayUsage(a) - dayUsage(b)
         break
     }
 
@@ -112,7 +117,6 @@ function Row({ node }: { node: Node }) {
   const [open, setOpen] = useState(false)
   const m = node.online ? node.metrics : null
   const traffic = monthUsage(node)
-  const today = dayUsage(node)
   const toggle = () => setOpen((o) => !o)
 
   return (
@@ -146,7 +150,6 @@ function Row({ node }: { node: Node }) {
         </TableCell>
         <TableCell className={cn(COL.uptime, "tnum")}>{m ? duration(m.uptime) : "—"}</TableCell>
         <TableCell className={cn(COL.expiry, "tnum")}><Expiry node={node} /></TableCell>
-        <TableCell className={cn(COL.load, "tnum")}>{m ? m.load[0].toFixed(2) : "—"}</TableCell>
         <TableCell className={COL.speed}>
           {m ? (
             <div className="inline-flex items-center justify-center text-xs @max-3xl:flex @max-3xl:flex-col @max-3xl:items-center @max-3xl:gap-0.5 @max-3xl:text-[9px] @max-3xl:leading-none">
@@ -170,7 +173,8 @@ function Row({ node }: { node: Node }) {
         <TableCell className={COL.bar}><Bar pct={m ? m.cpu : null} /></TableCell>
         <TableCell className={COL.bar}><Bar pct={m ? percent(m.mem_used, m.mem_total) : null} /></TableCell>
         <TableCell className={COL.bar}><Bar pct={m ? percent(m.disk_used, m.disk_total) : null} /></TableCell>
-        <TableCell className={cn(COL.today, "tnum")}>{trafficG(today)}</TableCell>
+        <TableCell className={cn(COL.day, "tnum")}>{trafficG(node.day_rx)}</TableCell>
+        <TableCell className={cn(COL.day, "tnum")}>{trafficG(node.day_tx)}</TableCell>
         <TableCell
           className={COL.traffic}
           title={`本期已用 ${node.traffic_limit > 0 ? `${trafficPair(traffic, node.traffic_limit)}（${((traffic / node.traffic_limit) * 100).toFixed(1)}%）` : `${trafficG(traffic)} · 无流量配额`}`}
@@ -283,16 +287,16 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
   const heads: [keyof typeof COL, ReactNode, SortField?][] = [
     ["status", "状态"],
     ["name", "名称", "name"],
-    ["location", "位置"],
-    ["os", "系统"],
+    ["location", "位置", "location"],
+    ["os", "系统", "os"],
     ["uptime", "在线", "uptime"],
-    ["expiry", "到期"],
-    ["load", "负载", "load"],
+    ["expiry", "到期", "expiry"],
     ["speed", <>网速<span className="@max-3xl:hidden"> ↓|↑</span></>, "speed"],
     ["bar", "CPU", "cpu"],
     ["bar", "内存", "mem"],
     ["bar", "硬盘", "disk"],
-    ["today", "今日", "today"],
+    ["day", "今日下", "day_down"],
+    ["day", "今日上", "day_up"],
     ["traffic", "本月", "traffic"],
   ]
 
@@ -344,6 +348,23 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0" />
                 <Num ch={SLOT.rate}>{rateM(live((m) => m.net_tx))}</Num>
+              </span>
+            </span>
+          </div>
+
+          <div
+            className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
+            title="所有节点今日下载与上传之和"
+          >
+            <span className="text-muted-foreground">本日</span>
+            <span className="font-semibold text-foreground inline-flex items-center gap-1.5 leading-none">
+              <span className="inline-flex items-center gap-0.5 leading-none">
+                <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <Num ch={SLOT.bytes}>{trafficG(all((n) => n.day_rx))}</Num>
+              </span>
+              <span className="inline-flex items-center gap-0.5 leading-none">
+                <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0" />
+                <Num ch={SLOT.bytes}>{trafficG(all((n) => n.day_tx))}</Num>
               </span>
             </span>
           </div>
@@ -434,8 +455,8 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
         </div>
       )}
 
-      <CardContent className="p-0">
-        <Table className="text-center text-sm @max-3xl:table-fixed @max-3xl:text-[10px]">
+      <CardContent className="p-0 overflow-x-auto">
+        <Table className="text-center text-sm min-w-max">
           <TableHeader>
             <TableRow className="hover:bg-transparent bg-muted/20">
               {heads.map(([col, label, field], i) => (
@@ -454,7 +475,7 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
           <TableBody className="[&_td]:px-2 [&_td]:py-2 @max-3xl:[&_td]:px-1 @max-3xl:[&_td:first-child]:pl-2 @max-3xl:[&_td:last-child]:pr-2">
             {filteredNodes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={13} className="py-12 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={14} className="py-12 text-center text-sm text-muted-foreground">
                   没有匹配的服务器
                 </TableCell>
               </TableRow>
@@ -485,10 +506,11 @@ export function ServerTableSkeleton() {
           <Skeleton className="h-7 w-28 rounded-md" />
           <Skeleton className="h-7 w-36 rounded-md" />
           <Skeleton className="h-7 w-32 rounded-md" />
+          <Skeleton className="h-7 w-32 rounded-md" />
         </div>
       </CardHeader>
-      <CardContent className="p-0">
-        <div className="divide-y divide-border/30">
+      <CardContent className="p-0 overflow-x-auto">
+        <div className="divide-y divide-border/30 min-w-max">
           <div className="flex h-9 items-center px-4 bg-muted/20">
             <Skeleton className="h-3 w-full" />
           </div>
@@ -500,11 +522,11 @@ export function ServerTableSkeleton() {
               <Skeleton className="h-4 w-8 shrink-0 @max-5xl:hidden" />
               <Skeleton className="h-4 w-16 shrink-0 @max-3xl:hidden" />
               <Skeleton className="h-4 w-16 shrink-0 @max-5xl:hidden" />
-              <Skeleton className="h-4 w-12 shrink-0 @max-3xl:hidden" />
               <Skeleton className="h-4 w-24 shrink-0 @max-3xl:w-12" />
               <Skeleton className="h-2 w-16 shrink-0" />
               <Skeleton className="h-2 w-16 shrink-0" />
               <Skeleton className="h-2 w-16 shrink-0" />
+              <Skeleton className="h-2 w-12 shrink-0 @max-3xl:hidden" />
               <Skeleton className="h-2 w-12 shrink-0 @max-3xl:hidden" />
               <Skeleton className="h-2 w-24 shrink-0" />
             </div>

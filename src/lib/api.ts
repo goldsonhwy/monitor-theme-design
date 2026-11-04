@@ -21,6 +21,12 @@ export type Metrics = {
   procs: number
 }
 
+export type PingProbe = {
+  name: string
+  latest: number
+  loss: number
+}
+
 export type Node = {
   id: number
   name: string
@@ -65,6 +71,8 @@ export type Node = {
   hostname?: string
   ip?: string
   remark?: string
+  /** Ping probe data keyed by task name (e.g. "电信", "移动", "联通") */
+  ping?: Record<string, PingProbe>
 }
 
 class ApiError extends Error {

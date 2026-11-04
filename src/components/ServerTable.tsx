@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import type { Node } from "@/lib/api"
+import type { Node, PingProbe } from "@/lib/api"
 import { daysUntil, duration, FOREVER, monthUsage, percent, rateM, trafficG, trafficPair } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
@@ -39,6 +39,7 @@ const COL = {
   os: "w-12 text-center @max-5xl:hidden",
   uptime: "w-20 text-center @max-3xl:hidden",
   expiry: "w-20 text-center @max-5xl:hidden",
+  ping: "w-14 min-w-12 text-center @max-3xl:hidden",
   speed: "min-w-28 text-center @max-3xl:w-[15%] @max-3xl:min-w-0 @max-sm:w-[16%] overflow-hidden",
   bar: "w-20 min-w-16 text-center @max-3xl:w-[10%] @max-3xl:min-w-0 @max-sm:w-[11%] overflow-hidden",
   day: "w-20 min-w-16 text-center @max-3xl:hidden",
@@ -48,7 +49,7 @@ const COL = {
   traffic: "w-28 min-w-22 text-center @max-3xl:w-[23%] @max-3xl:min-w-0 @max-sm:w-[23%] overflow-hidden",
 }
 
-type SortField = "name" | "location" | "os" | "uptime" | "expiry" | "speed" | "cpu" | "mem" | "disk" | "day_down" | "day_up" | "ratio" | "month_down" | "month_up" | "month_ratio" | "traffic"
+type SortField = "name" | "location" | "os" | "uptime" | "expiry" | "ping_telecom" | "ping_mobile" | "ping_unicom" | "speed" | "cpu" | "mem" | "disk" | "day_down" | "day_up" | "ratio" | "month_down" | "month_up" | "month_ratio" | "traffic"
 type SortOrder = "asc" | "desc"
 
 function calcRatio(tx: number, rx: number): number | null {
@@ -61,6 +62,27 @@ function ratioColor(ratio: number | null): string {
   if (ratio > 1.3) return "text-emerald-500"
   if (ratio < 0.7) return "text-red-500"
   return "text-amber-500"
+}
+
+/** Latency color: green → lime → amber → orange → red */
+function latencyColor(latency: number | null): string {
+  if (latency === null || latency < 0) return "text-muted-foreground"
+  if (latency <= 50) return "text-emerald-500"
+  if (latency <= 80) return "text-lime-500"
+  if (latency <= 250) return "text-amber-500"
+  if (latency <= 500) return "text-orange-500"
+  return "text-red-500"
+}
+
+/** Loss color: green → lime → amber → orange → red → darker red */
+function lossColor(loss: number | null): string {
+  if (loss === null || loss < 0) return "text-muted-foreground"
+  if (loss === 0) return "text-emerald-500"
+  if (loss <= 1) return "text-lime-500"
+  if (loss <= 5) return "text-amber-500"
+  if (loss <= 10) return "text-orange-500"
+  if (loss <= 20) return "text-red-400"
+  return "text-red-600"
 }
 
 function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): Node[] {
@@ -90,6 +112,24 @@ function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): No
         const va = ea === null ? Infinity : ea
         const vb = eb === null ? Infinity : eb
         res = va - vb
+        break
+      }
+      case "ping_telecom": {
+        const pa = a.ping?.["电信"]?.latest ?? -1
+        const pb = b.ping?.["电信"]?.latest ?? -1
+        res = pa - pb
+        break
+      }
+      case "ping_mobile": {
+        const pa = a.ping?.["移动"]?.latest ?? -1
+        const pb = b.ping?.["移动"]?.latest ?? -1
+        res = pa - pb
+        break
+      }
+      case "ping_unicom": {
+        const pa = a.ping?.["联通"]?.latest ?? -1
+        const pb = b.ping?.["联通"]?.latest ?? -1
+        res = pa - pb
         break
       }
       case "speed": {
@@ -140,6 +180,23 @@ function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): No
   })
 }
 
+function PingCell({ probe }: { probe?: PingProbe }) {
+  const latency = probe?.latest ?? null
+  const loss = probe?.loss ?? null
+  const validLatency = latency !== null && latency >= 0 ? latency : null
+
+  return (
+    <div className="flex flex-col items-center justify-center leading-none gap-0.5">
+      <span className={cn("text-[11px] font-medium tabular-nums", latencyColor(validLatency))}>
+        {validLatency !== null ? `${Math.round(validLatency)}` : "—"}
+      </span>
+      <span className={cn("text-[10px] tabular-nums", lossColor(loss))}>
+        {loss !== null ? `${loss.toFixed(1)}%` : "—"}
+      </span>
+    </div>
+  )
+}
+
 function Row({ node }: { node: Node }) {
   const [open, setOpen] = useState(false)
   const m = node.online ? node.metrics : null
@@ -147,6 +204,10 @@ function Row({ node }: { node: Node }) {
   const ratio = calcRatio(node.day_tx, node.day_rx)
   const monthRatio = calcRatio(node.month_tx, node.month_rx)
   const toggle = () => setOpen((o) => !o)
+
+  const pingTelecom = node.ping?.["电信"]
+  const pingMobile = node.ping?.["移动"]
+  const pingUnicom = node.ping?.["联通"]
 
   return (
     <>
@@ -179,6 +240,9 @@ function Row({ node }: { node: Node }) {
         </TableCell>
         <TableCell className={cn(COL.uptime, "tnum")}>{m ? duration(m.uptime) : "—"}</TableCell>
         <TableCell className={cn(COL.expiry, "tnum")}><Expiry node={node} /></TableCell>
+        <TableCell className={cn(COL.ping)}><PingCell probe={pingTelecom} /></TableCell>
+        <TableCell className={cn(COL.ping)}><PingCell probe={pingMobile} /></TableCell>
+        <TableCell className={cn(COL.ping)}><PingCell probe={pingUnicom} /></TableCell>
         <TableCell className={COL.speed}>
           {m ? (
             <div className="inline-flex items-center justify-center text-xs @max-3xl:flex @max-3xl:flex-col @max-3xl:items-center @max-3xl:gap-0.5 @max-3xl:text-[9px] @max-3xl:leading-none">
@@ -228,7 +292,7 @@ function Row({ node }: { node: Node }) {
       </TableRow>
       {open && (
         <TableRow className="border-b bg-muted/25 hover:bg-muted/25">
-          <TableCell colSpan={17} className="p-0! text-left whitespace-normal">
+          <TableCell colSpan={20} className="p-0! text-left whitespace-normal">
             <RowDetails node={node} />
           </TableCell>
         </TableRow>
@@ -325,7 +389,6 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
     return sortedNodes.filter((n) => `${n.name} ${n.country} ${n.os} ${n.group ?? ""}`.toLowerCase().includes(q))
   }, [sortedNodes, q])
 
-  // Pre-compute aggregate values for summary chips
   const liveRx = live((m) => m.net_rx)
   const liveTx = live((m) => m.net_tx)
   const speedRatio = calcRatio(liveTx, liveRx)
@@ -349,6 +412,9 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
     ["os", "系统", "os"],
     ["uptime", "在线", "uptime"],
     ["expiry", "到期", "expiry"],
+    ["ping", "电信", "ping_telecom"],
+    ["ping", "移动", "ping_mobile"],
+    ["ping", "联通", "ping_unicom"],
     ["speed", <>网速<span className="@max-3xl:hidden"> ↓|↑</span></>, "speed"],
     ["bar", "CPU", "cpu"],
     ["bar", "内存", "mem"],
@@ -368,7 +434,6 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
       <CardHeader className="border-b border-border/60 py-3 sm:flex-row sm:items-center sm:justify-between max-md:px-3 gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            {/* 在线率放在服务器列表文字前面 */}
             <div
               className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
               title="在线节点数 / 节点总数"
@@ -397,7 +462,6 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
         </div>
 
         <div className="tnum flex flex-wrap items-center gap-2 text-xs">
-          {/* 网速 + 分享率 */}
           <div
             className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
             title="在线节点此刻的下行与上行之和"
@@ -419,7 +483,6 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
             </span>
           </div>
 
-          {/* 本日 + 分享率 */}
           <div
             className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
             title="所有节点今日下载与上传之和"
@@ -441,7 +504,6 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
             </span>
           </div>
 
-          {/* 本月 + 分享率 */}
           <div
             className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
             title="所有节点本期的下载与上传之和"
@@ -463,7 +525,6 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
             </span>
           </div>
 
-          {/* 累计 + 分享率 */}
           <div
             className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1 max-sm:hidden"
             title="所有节点自接入以来的下载与上传之和"
@@ -557,7 +618,7 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
           <TableBody className="[&_td]:px-2 [&_td]:py-2 @max-3xl:[&_td]:px-1 @max-3xl:[&_td:first-child]:pl-2 @max-3xl:[&_td:last-child]:pr-2">
             {filteredNodes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={17} className="py-12 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={20} className="py-12 text-center text-sm text-muted-foreground">
                   没有匹配的服务器
                 </TableCell>
               </TableRow>
@@ -604,6 +665,9 @@ export function ServerTableSkeleton() {
               <Skeleton className="h-4 w-8 shrink-0 @max-5xl:hidden" />
               <Skeleton className="h-4 w-16 shrink-0 @max-3xl:hidden" />
               <Skeleton className="h-4 w-16 shrink-0 @max-5xl:hidden" />
+              <Skeleton className="h-2 w-10 shrink-0 @max-3xl:hidden" />
+              <Skeleton className="h-2 w-10 shrink-0 @max-3xl:hidden" />
+              <Skeleton className="h-2 w-10 shrink-0 @max-3xl:hidden" />
               <Skeleton className="h-4 w-24 shrink-0 @max-3xl:w-12" />
               <Skeleton className="h-2 w-16 shrink-0" />
               <Skeleton className="h-2 w-16 shrink-0" />

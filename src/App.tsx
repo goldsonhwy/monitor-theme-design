@@ -376,8 +376,8 @@ function NavTab({
   )
 }
 
-// Unified layout measure across header, main, and footer: 1280px (max-w-7xl)
-const CONTAINER_CLASS = "mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8"
+// Fluid layout: full-width with safe side margins, no max-width constraint
+const CONTAINER_CLASS = "mx-auto w-full px-4 sm:px-6 lg:px-8"
 
 export default function App() {
   const { mode, dark, choose } = useTheme()

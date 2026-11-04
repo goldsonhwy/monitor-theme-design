@@ -42,11 +42,26 @@ const COL = {
   speed: "min-w-28 text-center @max-3xl:w-[15%] @max-3xl:min-w-0 @max-sm:w-[16%] overflow-hidden",
   bar: "w-20 min-w-16 text-center @max-3xl:w-[10%] @max-3xl:min-w-0 @max-sm:w-[11%] overflow-hidden",
   day: "w-20 min-w-16 text-center @max-3xl:hidden",
+  ratio: "w-16 min-w-14 text-center @max-3xl:hidden",
+  month: "w-20 min-w-16 text-center @max-3xl:hidden",
+  month_ratio: "w-16 min-w-14 text-center @max-3xl:hidden",
   traffic: "w-28 min-w-22 text-center @max-3xl:w-[23%] @max-3xl:min-w-0 @max-sm:w-[23%] overflow-hidden",
 }
 
-type SortField = "name" | "location" | "os" | "uptime" | "expiry" | "speed" | "cpu" | "mem" | "disk" | "day_down" | "day_up" | "traffic"
+type SortField = "name" | "location" | "os" | "uptime" | "expiry" | "speed" | "cpu" | "mem" | "disk" | "day_down" | "day_up" | "ratio" | "month_down" | "month_up" | "month_ratio" | "traffic"
 type SortOrder = "asc" | "desc"
+
+function calcRatio(tx: number, rx: number): number | null {
+  if (rx <= 0) return null
+  return tx / rx
+}
+
+function ratioColor(ratio: number | null): string {
+  if (ratio === null) return "text-muted-foreground"
+  if (ratio > 1.3) return "text-emerald-500"
+  if (ratio < 0.7) return "text-red-500"
+  return "text-amber-500"
+}
 
 function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): Node[] {
   if (!field) return [...nodes].sort((a, b) => a.sort - b.sort || a.id - b.id)
@@ -104,6 +119,18 @@ function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): No
       case "day_up":
         res = a.day_tx - b.day_tx
         break
+      case "ratio":
+        res = (calcRatio(a.day_tx, a.day_rx) ?? -1) - (calcRatio(b.day_tx, b.day_rx) ?? -1)
+        break
+      case "month_down":
+        res = a.month_rx - b.month_rx
+        break
+      case "month_up":
+        res = a.month_tx - b.month_tx
+        break
+      case "month_ratio":
+        res = (calcRatio(a.month_tx, a.month_rx) ?? -1) - (calcRatio(b.month_tx, b.month_rx) ?? -1)
+        break
       case "traffic":
         res = monthUsage(a) - monthUsage(b)
         break
@@ -117,6 +144,8 @@ function Row({ node }: { node: Node }) {
   const [open, setOpen] = useState(false)
   const m = node.online ? node.metrics : null
   const traffic = monthUsage(node)
+  const ratio = calcRatio(node.day_tx, node.day_rx)
+  const monthRatio = calcRatio(node.month_tx, node.month_rx)
   const toggle = () => setOpen((o) => !o)
 
   return (
@@ -175,6 +204,18 @@ function Row({ node }: { node: Node }) {
         <TableCell className={COL.bar}><Bar pct={m ? percent(m.disk_used, m.disk_total) : null} /></TableCell>
         <TableCell className={cn(COL.day, "tnum")}>{trafficG(node.day_rx)}</TableCell>
         <TableCell className={cn(COL.day, "tnum")}>{trafficG(node.day_tx)}</TableCell>
+        <TableCell className={cn(COL.ratio, "tnum")}>
+          <span className={cn("text-xs font-medium", ratioColor(ratio))}>
+            {ratio === null ? "—" : ratio.toFixed(2)}
+          </span>
+        </TableCell>
+        <TableCell className={cn(COL.month, "tnum")}>{trafficG(node.month_rx)}</TableCell>
+        <TableCell className={cn(COL.month, "tnum")}>{trafficG(node.month_tx)}</TableCell>
+        <TableCell className={cn(COL.month_ratio, "tnum")}>
+          <span className={cn("text-xs font-medium", ratioColor(monthRatio))}>
+            {monthRatio === null ? "—" : monthRatio.toFixed(2)}
+          </span>
+        </TableCell>
         <TableCell
           className={COL.traffic}
           title={`本期已用 ${node.traffic_limit > 0 ? `${trafficPair(traffic, node.traffic_limit)}（${((traffic / node.traffic_limit) * 100).toFixed(1)}%）` : `${trafficG(traffic)} · 无流量配额`}`}
@@ -187,7 +228,7 @@ function Row({ node }: { node: Node }) {
       </TableRow>
       {open && (
         <TableRow className="border-b bg-muted/25 hover:bg-muted/25">
-          <TableCell colSpan={13} className="p-0! text-left whitespace-normal">
+          <TableCell colSpan={17} className="p-0! text-left whitespace-normal">
             <RowDetails node={node} />
           </TableCell>
         </TableRow>
@@ -284,6 +325,23 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
     return sortedNodes.filter((n) => `${n.name} ${n.country} ${n.os} ${n.group ?? ""}`.toLowerCase().includes(q))
   }, [sortedNodes, q])
 
+  // Pre-compute aggregate values for summary chips
+  const liveRx = live((m) => m.net_rx)
+  const liveTx = live((m) => m.net_tx)
+  const speedRatio = calcRatio(liveTx, liveRx)
+
+  const totalDayRx = all((n) => n.day_rx)
+  const totalDayTx = all((n) => n.day_tx)
+  const dayRatioVal = calcRatio(totalDayTx, totalDayRx)
+
+  const totalMonthRx = all((n) => n.month_rx)
+  const totalMonthTx = all((n) => n.month_tx)
+  const monthRatioVal = calcRatio(totalMonthTx, totalMonthRx)
+
+  const totalRx = all((n) => n.total_rx)
+  const totalTx = all((n) => n.total_tx)
+  const totalRatioVal = calcRatio(totalTx, totalRx)
+
   const heads: [keyof typeof COL, ReactNode, SortField?][] = [
     ["status", "状态"],
     ["name", "名称", "name"],
@@ -297,6 +355,10 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
     ["bar", "硬盘", "disk"],
     ["day", "今日下", "day_down"],
     ["day", "今日上", "day_up"],
+    ["ratio", "分享率", "ratio"],
+    ["month", "本月下", "month_down"],
+    ["month", "本月上", "month_up"],
+    ["month_ratio", "月分享", "month_ratio"],
     ["traffic", "本月", "traffic"],
   ]
 
@@ -306,6 +368,17 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
       <CardHeader className="border-b border-border/60 py-3 sm:flex-row sm:items-center sm:justify-between max-md:px-3 gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
+            {/* 在线率放在服务器列表文字前面 */}
+            <div
+              className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
+              title="在线节点数 / 节点总数"
+            >
+              <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.2)]" />
+              <span className="text-muted-foreground text-xs">在线</span>
+              <span className="font-semibold text-foreground text-xs">
+                <Num ch={String(groupNodes.length).length}>{groupNodes.filter((n) => n.online).length}</Num> / {groupNodes.length}
+              </span>
+            </div>
             <CardTitle className="text-base">服务器列表</CardTitle>
             <Badge variant="secondary" className="font-normal text-secondary-foreground text-[11px]">
               {filteredNodes.length !== nodes.length ? `${filteredNodes.length} / ${nodes.length}` : `${nodes.length}`} 个节点
@@ -324,17 +397,7 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
         </div>
 
         <div className="tnum flex flex-wrap items-center gap-2 text-xs">
-          <div
-            className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
-            title="在线节点数 / 节点总数"
-          >
-            <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.2)]" />
-            <span className="text-muted-foreground">在线</span>
-            <span className="font-semibold text-foreground">
-              <Num ch={String(groupNodes.length).length}>{groupNodes.filter((n) => n.online).length}</Num> / {groupNodes.length}
-            </span>
-          </div>
-
+          {/* 网速 + 分享率 */}
           <div
             className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
             title="在线节点此刻的下行与上行之和"
@@ -343,15 +406,20 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
             <span className="font-semibold text-foreground inline-flex items-center gap-1.5 leading-none">
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <Num ch={SLOT.rate}>{rateM(live((m) => m.net_rx))}</Num>
+                <Num ch={SLOT.rate}>{rateM(liveRx)}</Num>
               </span>
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0" />
-                <Num ch={SLOT.rate}>{rateM(live((m) => m.net_tx))}</Num>
+                <Num ch={SLOT.rate}>{rateM(liveTx)}</Num>
               </span>
+            </span>
+            <span className={cn("inline-flex items-center gap-0.5 font-bold text-xs", ratioColor(speedRatio))}>
+              <span>⚖️</span>
+              <span>{speedRatio === null ? "—" : speedRatio.toFixed(2)}</span>
             </span>
           </div>
 
+          {/* 本日 + 分享率 */}
           <div
             className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
             title="所有节点今日下载与上传之和"
@@ -360,15 +428,20 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
             <span className="font-semibold text-foreground inline-flex items-center gap-1.5 leading-none">
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <Num ch={SLOT.bytes}>{trafficG(all((n) => n.day_rx))}</Num>
+                <Num ch={SLOT.bytes}>{trafficG(totalDayRx)}</Num>
               </span>
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0" />
-                <Num ch={SLOT.bytes}>{trafficG(all((n) => n.day_tx))}</Num>
+                <Num ch={SLOT.bytes}>{trafficG(totalDayTx)}</Num>
               </span>
+            </span>
+            <span className={cn("inline-flex items-center gap-0.5 font-bold text-xs", ratioColor(dayRatioVal))}>
+              <span>⚖️</span>
+              <span>{dayRatioVal === null ? "—" : dayRatioVal.toFixed(2)}</span>
             </span>
           </div>
 
+          {/* 本月 + 分享率 */}
           <div
             className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
             title="所有节点本期的下载与上传之和"
@@ -377,15 +450,20 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
             <span className="font-semibold text-foreground inline-flex items-center gap-1.5 leading-none">
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <Num ch={SLOT.bytes}>{trafficG(all((n) => n.month_rx))}</Num>
+                <Num ch={SLOT.bytes}>{trafficG(totalMonthRx)}</Num>
               </span>
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0" />
-                <Num ch={SLOT.bytes}>{trafficG(all((n) => n.month_tx))}</Num>
+                <Num ch={SLOT.bytes}>{trafficG(totalMonthTx)}</Num>
               </span>
+            </span>
+            <span className={cn("inline-flex items-center gap-0.5 font-bold text-xs", ratioColor(monthRatioVal))}>
+              <span>⚖️</span>
+              <span>{monthRatioVal === null ? "—" : monthRatioVal.toFixed(2)}</span>
             </span>
           </div>
 
+          {/* 累计 + 分享率 */}
           <div
             className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1 max-sm:hidden"
             title="所有节点自接入以来的下载与上传之和"
@@ -394,12 +472,16 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
             <span className="font-semibold text-foreground inline-flex items-center gap-1.5 leading-none">
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <Num ch={SLOT.bytes}>{trafficG(all((n) => n.total_rx))}</Num>
+                <Num ch={SLOT.bytes}>{trafficG(totalRx)}</Num>
               </span>
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0" />
-                <Num ch={SLOT.bytes}>{trafficG(all((n) => n.total_tx))}</Num>
+                <Num ch={SLOT.bytes}>{trafficG(totalTx)}</Num>
               </span>
+            </span>
+            <span className={cn("inline-flex items-center gap-0.5 font-bold text-xs", ratioColor(totalRatioVal))}>
+              <span>⚖️</span>
+              <span>{totalRatioVal === null ? "—" : totalRatioVal.toFixed(2)}</span>
             </span>
           </div>
         </div>
@@ -475,7 +557,7 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
           <TableBody className="[&_td]:px-2 [&_td]:py-2 @max-3xl:[&_td]:px-1 @max-3xl:[&_td:first-child]:pl-2 @max-3xl:[&_td:last-child]:pr-2">
             {filteredNodes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={14} className="py-12 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={17} className="py-12 text-center text-sm text-muted-foreground">
                   没有匹配的服务器
                 </TableCell>
               </TableRow>
@@ -528,6 +610,10 @@ export function ServerTableSkeleton() {
               <Skeleton className="h-2 w-16 shrink-0" />
               <Skeleton className="h-2 w-12 shrink-0 @max-3xl:hidden" />
               <Skeleton className="h-2 w-12 shrink-0 @max-3xl:hidden" />
+              <Skeleton className="h-2 w-10 shrink-0 @max-3xl:hidden" />
+              <Skeleton className="h-2 w-12 shrink-0 @max-3xl:hidden" />
+              <Skeleton className="h-2 w-12 shrink-0 @max-3xl:hidden" />
+              <Skeleton className="h-2 w-10 shrink-0 @max-3xl:hidden" />
               <Skeleton className="h-2 w-24 shrink-0" />
             </div>
           ))}

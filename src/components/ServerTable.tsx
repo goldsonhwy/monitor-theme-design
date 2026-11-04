@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { Node } from "@/lib/api"
-import { bytes, compact, daysUntil, distro, duration, FOREVER, monthUsage, pair, percent } from "@/lib/format"
+import { daysUntil, distro, duration, FOREVER, monthUsage, percent, rateM, trafficG, trafficPair } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -148,12 +148,12 @@ function Row({ node }: { node: Node }) {
             <div className="inline-flex items-center justify-center text-xs @max-3xl:flex @max-3xl:flex-col @max-3xl:items-center @max-3xl:gap-0.5 @max-3xl:text-[9px] @max-3xl:leading-none">
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0 @max-3xl:size-2.5" />
-                <Num ch={SLOT.compact} className="@max-3xl:min-w-0">{compact(m.net_rx)}</Num>
+                <Num ch={SLOT.rate} className="@max-3xl:min-w-0">{rateM(m.net_rx)}</Num>
               </span>
               <span className="mx-1 text-muted-foreground/60 @max-3xl:hidden">|</span>
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0 @max-3xl:size-2.5" />
-                <Num ch={SLOT.compact} className="@max-3xl:min-w-0">{compact(m.net_tx)}</Num>
+                <Num ch={SLOT.rate} className="@max-3xl:min-w-0">{rateM(m.net_tx)}</Num>
               </span>
             </div>
           ) : (
@@ -168,11 +168,11 @@ function Row({ node }: { node: Node }) {
         <TableCell className={COL.bar}><Bar pct={m ? percent(m.disk_used, m.disk_total) : null} /></TableCell>
         <TableCell
           className={COL.traffic}
-          title={`本期已用 ${node.traffic_limit > 0 ? `${pair(traffic, node.traffic_limit)}（${((traffic / node.traffic_limit) * 100).toFixed(1)}%）` : `${bytes(traffic)} · 无流量配额`}`}
+          title={`本期已用 ${node.traffic_limit > 0 ? `${trafficPair(traffic, node.traffic_limit)}（${((traffic / node.traffic_limit) * 100).toFixed(1)}%）` : `${trafficG(traffic)} · 无流量配额`}`}
         >
           <Bar
             pct={node.traffic_limit > 0 ? percent(traffic, node.traffic_limit) : null}
-            label={`${compact(traffic)} / ${node.traffic_limit > 0 ? compact(node.traffic_limit) : FOREVER}`}
+            label={`${node.traffic_limit > 0 ? trafficPair(traffic, node.traffic_limit) : `${trafficG(traffic)} / ${FOREVER}`}`}
           />
         </TableCell>
       </TableRow>
@@ -333,11 +333,11 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
             <span className="font-semibold text-foreground inline-flex items-center gap-1.5 leading-none">
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <Num ch={SLOT.compact}>{compact(live((m) => m.net_rx))}</Num>/s
+                <Num ch={SLOT.rate}>{rateM(live((m) => m.net_rx))}</Num>
               </span>
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0" />
-                <Num ch={SLOT.compact}>{compact(live((m) => m.net_tx))}</Num>/s
+                <Num ch={SLOT.rate}>{rateM(live((m) => m.net_tx))}</Num>
               </span>
             </span>
           </div>
@@ -350,11 +350,11 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
             <span className="font-semibold text-foreground inline-flex items-center gap-1.5 leading-none">
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <Num ch={SLOT.bytes}>{bytes(all((n) => n.month_rx))}</Num>
+                <Num ch={SLOT.bytes}>{trafficG(all((n) => n.month_rx))}</Num>
               </span>
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0" />
-                <Num ch={SLOT.bytes}>{bytes(all((n) => n.month_tx))}</Num>
+                <Num ch={SLOT.bytes}>{trafficG(all((n) => n.month_tx))}</Num>
               </span>
             </span>
           </div>
@@ -367,11 +367,11 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
             <span className="font-semibold text-foreground inline-flex items-center gap-1.5 leading-none">
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <Num ch={SLOT.bytes}>{bytes(all((n) => n.total_rx))}</Num>
+                <Num ch={SLOT.bytes}>{trafficG(all((n) => n.total_rx))}</Num>
               </span>
               <span className="inline-flex items-center gap-0.5 leading-none">
                 <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0" />
-                <Num ch={SLOT.bytes}>{bytes(all((n) => n.total_tx))}</Num>
+                <Num ch={SLOT.bytes}>{trafficG(all((n) => n.total_tx))}</Num>
               </span>
             </span>
           </div>

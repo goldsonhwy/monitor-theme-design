@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Toggle } from "@/components/ui/toggle"
 import type { Node } from "@/lib/api"
 import {
-  axisBytes, axisTop, bytes, clockFor, despike, ewma, quarters, rate, timeTicks, uptime,
+  axisBytes, axisTop, bytes, clockFor, despike, ewma, quarters, rateM, timeTicks, uptime,
 } from "@/lib/format"
 import { fetchHistory, inRanges, LATENCY_HOURS, RANGES, type History, type Point, type Series } from "@/lib/history"
 import { knownPing, recordPing } from "@/lib/pings"
@@ -631,8 +631,8 @@ export function NodeDetail({ node }: { node: Node }) {
                 <LineChart data={metricRows}>
                   <CartesianGrid className="stroke-border" vertical={false} />
                   <XAxis {...timeAxis(metricRows, hours)} />
-                  <YAxis domain={[0, tops.rate]} ticks={quarters(tops.rate)} tickFormatter={axisBytes} unit="/s" width={Y_WIDTH} {...AXIS} />
-                  <Tooltip labelFormatter={label} formatter={(v) => rate(Number(v))} contentStyle={TIP} />
+                  <YAxis domain={[0, tops.rate]} ticks={quarters(tops.rate)} tickFormatter={rateM} width={Y_WIDTH} {...AXIS} />
+                  <Tooltip labelFormatter={label} formatter={(v) => rateM(Number(v))} contentStyle={TIP} />
                   <Line dataKey="net_rx" name="下行" stroke="var(--color-chart-2)" {...SERIES} />
                   <Line dataKey="net_tx" name="上行" stroke="var(--color-chart-3)" {...SERIES} />
                 </LineChart>

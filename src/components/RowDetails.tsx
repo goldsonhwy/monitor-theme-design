@@ -7,7 +7,8 @@ import { Segmented } from "@/components/ui/segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Node } from "@/lib/api"
 import {
-  bytes, cpuName, CYCLES, daysUntil, dayUsage, FOREVER, money, monthUsage, osName, pair, percent, periodStart,
+  bytes, cpuName, CYCLES, daysUntil, dayUsage, FOREVER, money, monthUsage, osName, percent, periodStart,
+  trafficG, trafficPair,
   TRAFFIC_MODES, uptime, virtName,
 } from "@/lib/format"
 import { fetchHistory, latencyWindow } from "@/lib/history"
@@ -72,8 +73,8 @@ function Overview({ node }: { node: Node }) {
   const today = dayUsage(node)
   const limit = node.traffic_limit
   const since = periodStart(node.month_start)
-  const usage = (used: number, total: number) => `${pair(used, total)}（${percent(used, total).toFixed(1)}%）`
-  const flow = (rx: number, tx: number) => `↓ ${bytes(rx)} · ↑ ${bytes(tx)}`
+  const usage = (used: number, total: number) => `${trafficPair(used, total)}（${percent(used, total).toFixed(1)}%）`
+  const flow = (rx: number, tx: number) => `↓ ${trafficG(rx)} · ↑ ${trafficG(tx)}`
   const metering = [
     node.traffic_reset_day > 0 && `每月 ${node.traffic_reset_day} 日重置`,
     limit > 0 && (TRAFFIC_MODES[node.traffic_mode] ?? node.traffic_mode),
@@ -138,9 +139,9 @@ function Overview({ node }: { node: Node }) {
           )
         }
       >
-        <Line label="本期">{limit > 0 ? usage(used, limit) : `${bytes(used)} / ${FOREVER}`}</Line>
+        <Line label="本期">{limit > 0 ? usage(used, limit) : `${trafficG(used)} / ${FOREVER}`}</Line>
         {limit > 0 && (
-          <PeriodMeter used={used} today={today} limit={limit} title={`本期已用 ${pair(used, limit)}，其中今日 ${bytes(today)}`} />
+          <PeriodMeter used={used} today={today} limit={limit} title={`本期已用 ${trafficPair(used, limit)}，其中今日 ${trafficG(today)}`} />
         )}
         <Line label="今日">{flow(node.day_rx, node.day_tx)}</Line>
         <Line label="累计">{flow(node.total_rx, node.total_tx)}</Line>

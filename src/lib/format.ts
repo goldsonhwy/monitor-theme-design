@@ -51,6 +51,21 @@ export function rate(n: number): string {
   return `${bytes(n, 1)}/s`
 }
 
+/** Network rates are always shown in MiB/s, even when the value is below 1 MiB/s. */
+export function rateM(n: number): string {
+  return `${(Math.max(0, n) / 1024 ** 2).toFixed(2)} M/s`
+}
+
+/** Traffic counters are always shown in GiB, never in the smaller byte units. */
+export function trafficG(n: number): string {
+  return `${(Math.max(0, n) / 1024 ** 3).toFixed(2)} G`
+}
+
+/** A used/limit traffic pair with one shared GiB unit. */
+export function trafficPair(used: number, total: number): string {
+  return `${(Math.max(0, used) / 1024 ** 3).toFixed(2)} / ${(Math.max(0, total) / 1024 ** 3).toFixed(2)} G`
+}
+
 /**
  * The table's form: one letter of unit and no trailing zeros, so a column holds
  * "4.91K | 626B" in the width `bytes` spends on one side.

@@ -5,7 +5,7 @@
 // Nothing imports it, so the bundle never includes it.
 import {
   axisBytes, axisTop, bytes, compact, cpuName, daysUntil, dayUsage, despike, distro, duration, ewma, metered,
-  monthUsage, osName, pair, periodStart, quarters, timeTicks, uptime, virtName,
+  monthUsage, osName, pair, periodStart, quarters, rateM, trafficG, trafficPair, timeTicks, uptime, virtName,
 } from "./format.ts"
 
 let failed = 0
@@ -27,6 +27,12 @@ eq(bytes(1024), "1.00 KB", "bytes(1 KiB)")
 eq(bytes(10 * 1024), "10.0 KB", "两位数留一位小数")
 eq(bytes(100 * 1024), "100 KB", "三位数不留小数")
 eq(bytes(1024, 1), "1.0 KB", "digits 覆盖默认档位")
+
+eq(rateM(0), "0.00 M/s", "网速零值也固定使用 M")
+eq(rateM(512 * 1024), "0.50 M/s", "网速不降级到 K")
+eq(rateM(3 * 1024 ** 2), "3.00 M/s", "网速使用 M")
+eq(trafficG(512 * 1024 ** 2), "0.50 G", "流量不降级到 M")
+eq(trafficPair(512 * 1024 ** 2, 2 * 1024 ** 3), "0.50 / 2.00 G", "流量配额统一使用 G")
 
 // pair: one unit when both sides share it, two when they do not.
 eq(pair(300 * 1024 ** 2, 900 * 1024 ** 2), "300.00 / 900.00 MB", "同单位只写一次")

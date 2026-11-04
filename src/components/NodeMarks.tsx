@@ -131,9 +131,8 @@ export function Meter({
 }
 
 // The widest form each formatter writes, in `ch`, measured with tabular figures.
-// M is the widest unit letter, so each is measured in megabytes rather than the
-// gigabytes a reading is more often in: `compact` spans "0B" to "1023M", that is
-// 2.2 to 5.49; `bytes` reaches 7.19 at "1023 MB"; `rate` 10.09 at "1023.0 MB/s".
+// Network rates are fixed-width M/s values and traffic is fixed-width G values.
+// Reserve enough space for the longest labels used by the table and summary row.
 // Rounded up, since other UI fonts are a few percent wider than the one these
 // were measured in.
 export const SLOT = { compact: 5.6, bytes: 7.3, rate: 10.2 }

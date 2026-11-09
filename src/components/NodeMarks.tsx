@@ -68,7 +68,7 @@ export function Flag({ code, className, showCode = true }: { code: string; class
   return (
     <span className={cn("inline-flex items-center justify-center gap-1", className)}>
       {src && <img src={src} alt="" className="h-3 w-4 shrink-0 rounded-[2px] object-cover ring-1 ring-foreground/10" />}
-      {showCode && <span className="@max-3xl:hidden uppercase font-mono text-[11px] leading-none">{code}</span>}
+      {showCode && <span className="@max-3xl:hidden uppercase text-[11px] leading-none">{code}</span>}
     </span>
   )
 }
@@ -118,12 +118,12 @@ export function barTone(pct: number): string {
  * it. `children` are drawn over the fill, positioned against it.
  */
 export function Meter({
-  pct, className, title, children,
-}: { pct: number | null; className?: string; title?: string; children?: ReactNode }) {
+  pct, className, title, fillColor, children,
+}: { pct: number | null; className?: string; title?: string; fillColor?: string; children?: ReactNode }) {
   const v = pct === null ? 0 : Math.min(100, Math.max(0, pct))
   return (
     <div title={title} className={cn("h-1.5 w-full overflow-hidden rounded-full bg-primary/10", className)}>
-      <div className={cn("relative h-full rounded-full transition-[width] duration-500", barTone(v))} style={{ width: `${v}%` }}>
+      <div className={cn("relative h-full rounded-full transition-[width] duration-500", !fillColor && barTone(v))} style={{ width: `${v}%`, ...(fillColor ? { backgroundColor: fillColor } : {}) }}>
         {children}
       </div>
     </div>

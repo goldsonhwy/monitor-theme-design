@@ -1,5 +1,27 @@
 import { useEffect, useState } from "react"
 
+export type NqBenchmark = {
+  single_core: number | null
+  multi_core: number | null
+  geekbench5_single: number | null
+  geekbench5_multi: number | null
+  random4k_single_read_mbps: number | null
+  random4k_single_write_mbps: number | null
+  random4k_multi_read_mbps: number | null
+  random4k_multi_write_mbps: number | null
+  sequential1m_single_read_mbps: number | null
+  sequential1m_single_write_mbps: number | null
+  sequential1m_multi_read_mbps: number | null
+  sequential1m_multi_write_mbps: number | null
+  ip_type?: string | null
+  youtube?: string | null
+  chatgpt?: string | null
+  port25?: boolean | null
+  telecom_route?: string | null
+  unicom_route?: string | null
+  mobile_route?: string | null
+}
+
 export type Metrics = {
   uptime: number
   cpu: number
@@ -71,6 +93,11 @@ export type Node = {
   hostname?: string
   ip?: string
   remark?: string
+  /** Optional public provider banner and destination configured in the panel. */
+  provider_image_url?: string
+  provider_link_url?: string
+  nq_link_url?: string
+  nq_benchmark?: NqBenchmark | null
   /** Ping probe data keyed by task name (e.g. "电信", "移动", "联通") */
   ping?: Record<string, PingProbe>
   /** Direct ping fields from hub */
@@ -80,6 +107,8 @@ export type Node = {
   loss_telecom?: number
   loss_mobile?: number
   loss_unicom?: number
+  /** Cached, redacted IP2Location.io intelligence. */
+  ip_info?: Record<string, string | number | null>
 }
 
 class ApiError extends Error {

@@ -61,9 +61,97 @@ export function trafficG(n: number): string {
   return `${(Math.max(0, n) / 1024 ** 3).toFixed(2)} G`
 }
 
+/** Monthly traffic counters are displayed in TiB, labelled T to match the table. */
+export function trafficT(n: number): string {
+  return `${(Math.max(0, n) / 1024 ** 4).toFixed(2)} T`
+}
+
 /** A used/limit traffic pair with one shared GiB unit. */
 export function trafficPair(used: number, total: number): string {
   return `${(Math.max(0, used) / 1024 ** 3).toFixed(2)} / ${(Math.max(0, total) / 1024 ** 3).toFixed(2)} G`
+}
+
+/** A used/limit monthly traffic pair with a shared TiB unit. */
+export function trafficPairT(used: number, total: number): string {
+  return `${(Math.max(0, used) / 1024 ** 4).toFixed(2)} / ${(Math.max(0, total) / 1024 ** 4).toFixed(2)} T`
+}
+
+const TRAFFIC_TB = 1024 ** 4
+
+export const DAY_COLOR_MAX = TRAFFIC_TB
+export const MONTH_COLOR_MAX = 50 * TRAFFIC_TB
+export const RATE_COLOR_MAX = 100 * 1024 ** 2
+export const CONNECTION_COLOR_MAX = 15_000
+const COLOR_CURVE = 99
+
+const RESOURCE_COLOR_STOPS = [
+  [0, "#35C9A0"],
+  [12, "#35C9A0"],
+  [25, "#56CF82"],
+  [37, "#9ACB55"],
+  [50, "#C6D34A"],
+  [62, "#E5C347"],
+  [75, "#F2A342"],
+  [87, "#F07842"],
+  [100, "#EF535B"],
+] as const
+
+function hexRgb(hex: string): [number, number, number] {
+  return [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16)) as [number, number, number]
+}
+
+/** Continuous resource colour interpolation using the supplied ladder as anchors. */
+export function resourceColor(value: number, maximum = 100): string {
+  const pct = maximum > 0 ? Math.min(100, Math.max(0, (Number.isFinite(value) ? value : 0) / maximum * 100)) : 0
+  const stopIndex = RESOURCE_COLOR_STOPS.findIndex(([position]) => pct <= position)
+  const upperIndex = stopIndex < 0 ? RESOURCE_COLOR_STOPS.length - 1 : stopIndex
+  const lowerIndex = Math.max(0, upperIndex - 1)
+  const [lowerPosition, lowerHex] = RESOURCE_COLOR_STOPS[lowerIndex]
+  const [upperPosition, upperHex] = RESOURCE_COLOR_STOPS[upperIndex]
+  const ratio = upperPosition === lowerPosition ? 0 : (pct - lowerPosition) / (upperPosition - lowerPosition)
+  const lower = hexRgb(lowerHex)
+  const upper = hexRgb(upperHex)
+  const rgb = lower.map((channel, index) => Math.round(channel + (upper[index] - channel) * ratio))
+  return `rgb(${rgb.join(", ")})`
+}
+
+/** Blend white into the existing colors with a fast-start, slow-finish log curve. */
+export function trafficColor(value: number, maximum: number, direction: "download" | "upload"): string {
+  const end = direction === "download" ? [167, 139, 250] : [56, 189, 248]
+  const linearRatio = maximum > 0 ? Math.min(1, Math.max(0, value) / maximum) : 0
+  const ratio = Math.log1p(COLOR_CURVE * linearRatio) / Math.log1p(COLOR_CURVE)
+  const rgb = end.map((channel) => Math.round(255 + (channel - 255) * ratio))
+  return `rgb(${rgb.join(", ")})`
+}
+
+function trafficUnit(reference: number): { divisor: number; label: string } {
+  return Math.max(0, reference) > TRAFFIC_TB
+    ? { divisor: TRAFFIC_TB, label: "TB" }
+    : { divisor: 1024 ** 3, label: "GB" }
+}
+
+/** Traffic counters use whole GB up to 1 TB, then whole TB. */
+export function trafficAuto(n: number, reference = n): string {
+  const { divisor, label } = trafficUnit(reference)
+  return `${Math.round(Math.max(0, n) / divisor)} ${label}`
+}
+
+/** Traffic counters use an automatically selected unit and a requested precision. */
+export function trafficAutoFixed(n: number, digits: number, reference = n): string {
+  const { divisor, label } = trafficUnit(reference)
+  return `${(Math.max(0, n) / divisor).toFixed(digits)} ${label}`
+}
+
+/** A traffic pair with one unit selected from the larger side. */
+export function trafficPairAuto(used: number, total: number): string {
+  const { divisor, label } = trafficUnit(Math.max(used, total))
+  return `${Math.round(Math.max(0, used) / divisor)} / ${Math.round(Math.max(0, total) / divisor)} ${label}`
+}
+
+/** Two traffic directions with one shared unit. */
+export function trafficFlowAuto(rx: number, tx: number): string {
+  const reference = Math.max(rx, tx)
+  return `↓ ${trafficAuto(rx, reference)} · ↑ ${trafficAuto(tx, reference)}`
 }
 
 /**
@@ -90,6 +178,25 @@ export function duration(seconds: number): string {
   if (s >= 86400) return `${Math.floor(s / 86400)} 天`
   const pad = (n: number) => String(n).padStart(2, "0")
   return `${Math.floor(s / 3600)}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`
+}
+
+/** Compact uptime for the server table: minutes, hours, then whole days. */
+export function onlineDuration(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds))
+  if (!s) return "—"
+  if (s < 3600) return `${Math.max(1, Math.floor(s / 60))} 分钟`
+  if (s < 86400) return `${Math.floor(s / 3600)} 时`
+  return `${Math.floor(s / 86400)} 天`
+}
+
+/** Full offline duration for the merged resource cell in the server table. */
+export function offlineDuration(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds))
+  const days = Math.floor(s / 86400)
+  const hours = Math.floor((s % 86400) / 3600)
+  const minutes = Math.floor((s % 3600) / 60)
+  const remainingSeconds = s % 60
+  return `已离线${days}天${hours}小时${minutes}分${remainingSeconds}秒`
 }
 
 /** A transfer counted the way a plan meters it: both directions, one, or the larger. */
@@ -183,7 +290,10 @@ export const FOREVER = "∞"
 const SYMBOLS: Record<string, string> = { USD: "$", CNY: "¥", EUR: "€", GBP: "£", JPY: "¥" }
 
 export function money(amount: number, currency: string): string {
-  return `${SYMBOLS[currency] ?? ""}${amount.toFixed(2)}${SYMBOLS[currency] ? "" : ` ${currency}`}`
+  const symbol = SYMBOLS[currency] ?? ""
+  const isCny = currency === "CNY"
+  const value = isCny ? String(amount) : amount.toFixed(2)
+  return `${symbol}${value}${symbol ? "" : ` ${currency}`}`
 }
 
 export const CYCLES: Record<string, string> = {

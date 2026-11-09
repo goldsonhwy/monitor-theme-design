@@ -1,25 +1,21 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
-import { ArrowUp, ChartLine, House, Monitor, Moon, Sparkles, Sun, UserRound, type LucideIcon } from "lucide-react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { UserRound } from "lucide-react"
 
 import { ServerTable, ServerTableSkeleton } from "@/components/ServerTable"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { SEGMENT, Segmented } from "@/components/ui/segmented"
+
 import { Skeleton } from "@/components/ui/skeleton"
 import { api, useNodes } from "@/lib/api"
 import { Link, useNodeRoute } from "@/lib/route"
 import { THEMES } from "@/lib/themes"
-import { loadConfig, saveConfig } from "@/lib/config"
+import { loadConfig } from "@/lib/config"
 import { cn } from "@/lib/utils"
 
 type Me = { authed: boolean; github: boolean; site_name: string; public_page: boolean }
+type VisitorInfoData = { ip?: string; city?: string; region?: string; connection?: { isp?: string; org?: string } }
 
-// The chart module is most of the bundle and the list draws no chart. Fetched
-// when the monitor tab is hovered or focused, so the status page does not
-// download it while a reader may never open a chart.
-const loadDetail = () => import("@/components/NodeDetail")
-const loadMonitor = () => import("@/components/MonitorPage")
-const MonitorPage = lazy(() => loadMonitor().then((module) => ({ default: module.MonitorPage })))
+const MonitorPage = lazy(() => import("@/components/MonitorPage").then((module) => ({ default: module.MonitorPage })))
 
 const DARK_MEDIA = matchMedia("(prefers-color-scheme: dark)")
 
@@ -78,12 +74,6 @@ function useTheme() {
   }
 }
 
-// The three positions, the system's between the two appearances it picks from.
-const MODES = [
-  { value: "light" as const, label: <Sun className="size-3.5" />, title: "浅色" },
-  { value: "system" as const, label: <Monitor className="size-3.5" />, title: "跟随系统" },
-  { value: "dark" as const, label: <Moon className="size-3.5" />, title: "深色" },
-]
 
 /**
  * Hook to manage dynamic tweakcn theme presets at runtime.
@@ -156,220 +146,33 @@ function useTextureSettings() {
   }
 }
 
-/**
- * Zen Browser-style theme & dual-parameter texture control popover.
- */
-function ThemeSettingsControl({
-  themeId,
-  onThemeChange,
-  grainPercent,
-  onGrainChange,
-  frostedPercent,
-  onFrostedChange,
-  authed,
-}: {
-  themeId: string
-  onThemeChange: (id: string) => void
-  grainPercent: number
-  onGrainChange: (val: number) => void
-  frostedPercent: number
-  onFrostedChange: (val: number) => void
-  authed?: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<string | null>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
 
-  const handleSaveDefault = async () => {
-    setSaving(true)
-    setSaveStatus(null)
-    try {
-      await saveConfig({
-        theme_preset: themeId,
-        grain_percent: grainPercent,
-        frosted_percent: frostedPercent,
+function VisitorInfoFooter() {
+  const [visitor, setVisitor] = useState<VisitorInfoData | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch("https://ipwho.is/?lang=zh-CN", { signal: controller.signal })
+      .then((response) => response.json())
+      .then((data: VisitorInfoData & { success?: boolean }) => {
+        if (data.success !== false) setVisitor(data)
       })
-      setSaveStatus("已设为全站默认")
-      setTimeout(() => setSaveStatus(null), 2500)
-    } catch (e: unknown) {
-      setSaveStatus(e instanceof Error ? e.message : "保存失败")
-      setTimeout(() => setSaveStatus(null), 3000)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!open) return
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener("pointerdown", handleClick)
-    return () => document.removeEventListener("pointerdown", handleClick)
-  }, [open])
-
-  return (
-    <div className="relative" ref={menuRef}>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setOpen(!open)}
-        className={cn(
-          "size-8 rounded-md transition-colors",
-          open ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
-        )}
-        title="主题配色与质感设置"
-      >
-        <Sparkles className="size-3.5 text-primary" />
-        <span className="sr-only">主题与质感设置</span>
-      </Button>
-
-      {open && (
-        <div className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-xl border border-border/80 bg-popover p-3.5 text-popover-foreground shadow-xl backdrop-blur-md space-y-3.5">
-          {/* Section 1: 主题配色 (tweakcn presets) */}
-          <div>
-            <div className="flex items-center justify-between pb-1.5 border-b border-border/60">
-              <span className="text-xs font-semibold">主题配色 (tweakcn)</span>
-              <span className="text-[10px] text-muted-foreground">实时换肤</span>
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
-              {THEMES.map((t) => {
-                const active = themeId === t.id
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => onThemeChange(t.id)}
-                    className={cn(
-                      "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition-all text-left cursor-pointer",
-                      active
-                        ? "border-primary bg-primary/10 text-foreground font-semibold shadow-2xs"
-                        : "border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground",
-                    )}
-                    title={t.desc}
-                  >
-                    <span
-                      className="size-3 rounded-full shrink-0 border border-black/10 dark:border-white/20 shadow-xs"
-                      style={{ backgroundColor: t.accentColor }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium leading-tight">{t.name}</div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Section 2: 参数 1 - 噪点强度 (Grain 0-100%) */}
-          <div className="pt-1 border-t border-border/50 space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold">噪点强度 (Zen Grain)</span>
-              <span className="font-mono text-xs font-bold text-primary">{grainPercent}%</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value={grainPercent}
-              onChange={(e) => onGrainChange(Number(e.target.value))}
-              className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary focus:outline-hidden"
-            />
-            <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-              <span>0% 无</span>
-              <span>20% 推荐</span>
-              <span>50% 明显</span>
-              <span>100% 极强</span>
-            </div>
-          </div>
-
-          {/* Section 3: 参数 2 - 磨砂透光度 (Frosted 0-100%) */}
-          <div className="pt-1 border-t border-border/50 space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold">磨砂透光 (Frosted Blur)</span>
-              <span className="font-mono text-xs font-bold text-primary">{frostedPercent}%</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value={frostedPercent}
-              onChange={(e) => onFrostedChange(Number(e.target.value))}
-              className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary focus:outline-hidden"
-            />
-            <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-              <span>0% 实心</span>
-              <span>20% 磨砂</span>
-              <span>50% 通透</span>
-              <span>100% 极透</span>
-            </div>
-          </div>
-
-          {/* Section 4: 站长保存为站点默认 */}
-          {authed && (
-            <div className="pt-2 border-t border-border/50">
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full text-xs h-7.5 cursor-pointer"
-                disabled={saving}
-                onClick={handleSaveDefault}
-              >
-                {saveStatus ?? (saving ? "保存中…" : "保存为全站默认外观")}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/** Back to the top of a long list, once it has been scrolled past. */
-function BackToTop() {
-  const [scrolled, setScrolled] = useState(false)
-  useEffect(() => {
-    const sync = () => setScrolled(scrollY > 200)
-    addEventListener("scroll", sync, { passive: true })
-    return () => removeEventListener("scroll", sync)
+      .catch(() => {})
+    return () => controller.abort()
   }, [])
-  if (!scrolled) return null
-  return (
-    <Button
-      variant="outline"
-      size="icon"
-      className="fixed right-6 bottom-6 z-30 rounded-full shadow-md max-md:right-4 max-md:bottom-4"
-      title="回到顶部"
-      onClick={() => scrollTo({ top: 0, behavior: "smooth" })}
-    >
-      <ArrowUp className="size-4" />
-    </Button>
-  )
-}
 
-/**
- * One page of the two, in the segmented shape the theme switch beside it wears.
- */
-function NavTab({
-  href, active, icon: Icon, prefetch, children,
-}: { href: string; active: boolean; icon: LucideIcon; prefetch?: () => void; children: string }) {
+  const location = [visitor?.city, visitor?.region].filter(Boolean).join("，") || "未知位置"
+  const isp = visitor?.connection?.isp || visitor?.connection?.org || "未知运营商"
+
   return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      title={children}
-      onPointerEnter={prefetch}
-      onFocus={prefetch}
-      className={cn(SEGMENT.item, "text-xs max-sm:px-2", active ? SEGMENT.on : SEGMENT.off)}
-    >
-      <Icon className="size-3.5" />
-      <span className="max-sm:sr-only">{children}</span>
-    </Link>
+    <footer className="mt-auto border-t border-border/70 bg-background/70">
+      <div className={cn(CONTAINER_CLASS, "flex flex-wrap items-center justify-center gap-x-4 gap-y-1 py-3 text-xs text-muted-foreground")}>
+        <span>访客信息</span>
+        <span>IP：{visitor?.ip || "加载中…"}</span>
+        <span>位置：{location}</span>
+        <span>运营商：{isp}</span>
+      </div>
+    </footer>
   )
 }
 
@@ -377,11 +180,12 @@ function NavTab({
 const CONTAINER_CLASS = "mx-auto w-full px-4 sm:px-6 lg:px-8"
 
 export default function App() {
-  const { mode, dark, choose } = useTheme()
-  const { themeId, setThemeId } = useThemePreset(dark)
-  const { grainPercent, setGrainPercent, frostedPercent, setFrostedPercent } = useTextureSettings()
+  const { dark } = useTheme()
+  const { setThemeId } = useThemePreset(dark)
+  const { grainPercent, setGrainPercent, setFrostedPercent } = useTextureSettings()
   const [config, setConfig] = useState<Record<string, unknown> | null>(null)
   const [me, setMe] = useState<Me | null>(null)
+  const [view, setView] = useState<"traffic" | "device" | "network-quality">("traffic")
   const [meError, setMeError] = useState("")
   const { nodes, error, closed } = useNodes()
   const open = useNodeRoute()
@@ -456,46 +260,14 @@ export default function App() {
       {/* Standard full-width sticky navigation bar aligned with page measure */}
       <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
         <div className={cn(CONTAINER_CLASS, "flex h-14 min-w-0 items-center justify-between gap-4 max-sm:gap-2")}>
-          <div className="flex min-w-0 items-center gap-6 max-sm:gap-3">
-            <Link href="/" className="flex min-w-0 shrink items-center gap-2.5 font-semibold tracking-tight text-foreground transition-colors hover:opacity-90">
-              <img src="/favicon.svg" alt="" className="size-5 shrink-0" />
-              <span className="min-w-0 truncate text-base font-bold">{site}</span>
-            </Link>
-            <nav aria-label="页面" className={cn(SEGMENT.list, "shrink-0")}>
-              <NavTab href="/" active={open === null} icon={House}>首页</NavTab>
-              {sorted.length > 0 && (
-                <NavTab
-                  href={`/node/${open ?? sorted[0].id}`}
-                  active={open !== null}
-                  icon={ChartLine}
-                  prefetch={() => {
-                    void loadMonitor()
-                    void loadDetail()
-                  }}
-                >
-                  监控
-                </NavTab>
-              )}
-            </nav>
-          </div>
-
+          <button type="button" onClick={() => location.reload()} aria-label="刷新页面" className="flex min-w-0 shrink items-center gap-2.5 font-semibold tracking-tight text-foreground transition-colors hover:opacity-90">
+            <img src="/favicon.svg" alt="" className="size-5 shrink-0" />
+            <span className="min-w-0 truncate text-base font-bold brand-glow">{site}</span>
+          </button>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <Segmented
-              value={mode}
-              onChange={choose}
-              options={MODES}
-              label="外观"
-              className="max-sm:[&>button]:px-2"
-            />
-            <ThemeSettingsControl
-              themeId={themeId}
-              onThemeChange={setThemeId}
-              grainPercent={grainPercent}
-              onGrainChange={setGrainPercent}
-              frostedPercent={frostedPercent}
-              onFrostedChange={setFrostedPercent}
-              authed={me.authed}
-            />
+            <button type="button" onClick={() => { setView("traffic"); history.pushState(null, "", "/"); dispatchEvent(new PopStateEvent("popstate")) }} className={cn("rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground", view === "traffic" ? "bg-accent text-accent-foreground" : "text-muted-foreground")}>流量</button>
+            <button type="button" onClick={() => { setView("device"); history.pushState(null, "", "/"); dispatchEvent(new PopStateEvent("popstate")) }} className={cn("rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground", view === "device" ? "bg-accent text-accent-foreground" : "text-muted-foreground")}>硬件</button>
+            <button type="button" onClick={() => { setView("network-quality"); history.pushState(null, "", "/"); dispatchEvent(new PopStateEvent("popstate")) }} className={cn("rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground", view === "network-quality" ? "bg-accent text-accent-foreground" : "text-muted-foreground")}>网络</button>
             <a
               href="/admin/"
               title={me.authed ? "后台" : "登录"}
@@ -529,7 +301,7 @@ export default function App() {
           sorted.length === 0 ? (
             <Card className="py-16 text-center text-sm text-muted-foreground">还没有节点</Card>
           ) : (
-            <ServerTable nodes={sorted} />
+            <ServerTable nodes={sorted} view={view} />
           )
         ) : selected ? (
           <Suspense fallback={<Skeleton className="h-96 w-full" />}>
@@ -542,16 +314,7 @@ export default function App() {
         )}
       </main>
 
-      {/* Footer with visitor IP info */}
-      <footer className="border-t border-border/60 bg-background/50">
-        <div className={cn(CONTAINER_CLASS, "flex flex-wrap items-center justify-center gap-x-4 gap-y-2 py-3 text-xs text-muted-foreground")}>
-          <a href="https://ippure.com" target="_blank" rel="noreferrer" title="点击查看IP信息" className="inline-flex items-center hover:opacity-80 transition-opacity">
-            <img src="https://my.ippure.com/v1/card" alt="访客IP信息卡片" className="h-6 w-auto rounded" />
-          </a>
-        </div>
-      </footer>
-
-      <BackToTop />
+      <VisitorInfoFooter />
     </div>
   )
 }

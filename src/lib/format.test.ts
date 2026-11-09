@@ -4,9 +4,10 @@
 //
 // Nothing imports it, so the bundle never includes it.
 import {
-  axisBytes, axisTop, bytes, compact, cpuName, daysUntil, dayUsage, despike, distro, duration, ewma, metered,
-  monthUsage, osName, pair, periodStart, quarters, rateM, trafficG, trafficPair, timeTicks, uptime, virtName,
+  axisBytes, axisTop, bytes, compact, CONNECTION_COLOR_MAX, cpuName, daysUntil, dayUsage, despike, distro, duration, ewma, metered, offlineDuration, onlineDuration,
+  monthUsage, osName, pair, periodStart, quarters, rateM, resourceColor, trafficAuto, trafficAutoFixed, trafficColor, trafficFlowAuto, trafficG, trafficPair, trafficPairAuto, trafficPairT, trafficT, timeTicks, uptime, virtName,
 } from "./format.ts"
+import { fillOfflineMetrics } from "./offline.ts"
 
 let failed = 0
 function eq(got: unknown, want: unknown, what: string) {
@@ -33,6 +34,28 @@ eq(rateM(512 * 1024), "0.50 M/s", "网速不降级到 K")
 eq(rateM(3 * 1024 ** 2), "3.00 M/s", "网速使用 M")
 eq(trafficG(512 * 1024 ** 2), "0.50 G", "流量不降级到 M")
 eq(trafficPair(512 * 1024 ** 2, 2 * 1024 ** 3), "0.50 / 2.00 G", "流量配额统一使用 G")
+eq(trafficT(1024 ** 4), "1.00 T", "月流量使用 T")
+eq(trafficPairT(1024 ** 4, 2 * 1024 ** 4), "1.00 / 2.00 T", "月流量配额使用 T")
+eq(trafficAuto(1024 ** 3 + 512 * 1024 ** 2), "2 GB", "1 TB以内流量使用整数 GB")
+eq(trafficAuto(1024 ** 4 + 1), "1 TB", "超过 1 TB 后使用整数 TB")
+eq(trafficAutoFixed(1.234 * 1024 ** 3, 2), "1.23 GB", "本日流量保留两位小数")
+eq(trafficAutoFixed(1.234 * 1024 ** 3, 1), "1.2 GB", "本月流量保留一位小数")
+eq(trafficAutoFixed(1.6 * 1024 ** 3, 0), "2 GB", "累计流量只显示整数")
+eq(trafficPairAuto(512 * 1024 ** 3, 2 * 1024 ** 4), "1 / 2 TB", "流量配额按较大值统一使用 TB")
+eq(trafficFlowAuto(3 * 1024 ** 3, 2 * 1024 ** 3), "↓ 3 GB · ↑ 2 GB", "上下行流量统一使用 GB")
+eq(trafficColor(0, 1024 ** 4, "download"), "rgb(255, 255, 255)", "下载颜色零值为白色")
+eq(trafficColor(1024 ** 4, 1024 ** 4, "download"), "rgb(167, 139, 250)", "下载颜色封顶为紫色")
+eq(trafficColor(0.01 * 1024 ** 4, 1024 ** 4, "download"), "rgb(242, 238, 254)", "对数曲线起始段快速变化")
+eq(trafficColor(0.5 * 1024 ** 4, 1024 ** 4, "download"), "rgb(180, 156, 251)", "对数曲线后段变化放缓")
+eq(trafficColor(50 * 1024 ** 4, 50 * 1024 ** 4, "upload"), "rgb(56, 189, 248)", "上传颜色封顶为蓝色")
+eq(trafficColor(75 * 1024 ** 4, 50 * 1024 ** 4, "upload"), "rgb(56, 189, 248)", "超过上限保持终点色")
+
+eq(resourceColor(0), "rgb(53, 201, 160)", "资源颜色零值")
+eq(resourceColor(12), "rgb(53, 201, 160)", "资源颜色 12% 锚点")
+eq(resourceColor(18), "rgb(68, 204, 146)", "资源颜色在锚点之间连续渐变")
+eq(resourceColor(100), "rgb(239, 83, 91)", "资源颜色 100% 为危险红")
+eq(resourceColor(200), "rgb(239, 83, 91)", "资源颜色超过上限保持危险红")
+eq(resourceColor(CONNECTION_COLOR_MAX, CONNECTION_COLOR_MAX), "rgb(239, 83, 91)", "连接数 15000 封顶为危险红")
 
 // pair: one unit when both sides share it, two when they do not.
 eq(pair(300 * 1024 ** 2, 900 * 1024 ** 2), "300.00 / 900.00 MB", "同单位只写一次")
@@ -124,6 +147,27 @@ eq(distro(""), "", "未上报")
 eq(duration(90), "0:01:30", "不足一小时")
 eq(duration(4 * 3600 + 26 * 60 + 44), "4:26:44", "不足一天走钟面")
 eq(duration(76 * 86400 + 5), "76 天", "超过一天只写天数")
+
+eq(onlineDuration(0), "—", "在线时长未上报")
+eq(onlineDuration(90), "1 分钟", "不足一小时显示分钟")
+eq(onlineDuration(3 * 3600 + 25 * 60), "3 时", "一天以内显示时")
+eq(onlineDuration(2 * 86400 + 5 * 3600), "2 天", "超过一天显示天数")
+
+eq(offlineDuration(0), "已离线0天0小时0分0秒", "离线时长零值")
+eq(offlineDuration(2 * 86400 + 3 * 3600 + 4 * 60 + 5), "已离线2天3小时4分5秒", "离线时长完整显示")
+
+{
+  const points = [
+    { ts: 0, cpu: 20, mem_used: 20, disk_used: 20, net_rx: 20, net_tx: 20, tcp: 20, udp: 20 },
+    { ts: 300, cpu: 30, mem_used: 30, disk_used: 30, net_rx: 30, net_tx: 30, tcp: 30, udp: 30 },
+  ]
+  const filled = fillOfflineMetrics(points, 60)
+  eq(filled.map((point) => [point.ts, point.cpu]), [[0, 20], [60, 0], [240, 0], [300, 30]], "历史缺口补零")
+  const ended = fillOfflineMetrics(points, 60, { until: 420 })
+  eq(ended.map((point) => [point.ts, point.cpu]), [[0, 20], [60, 0], [240, 0], [300, 30], [360, 0], [420, 0]], "当前离线延伸到现在")
+  const empty = fillOfflineMetrics([], 60, { since: 0, until: 180 })
+  eq(empty.map((point) => [point.ts, point.cpu]), [[0, 0], [180, 0]], "整个窗口离线也有零线")
+}
 
 {
   const node = { month_rx: 3, month_tx: 5, traffic_mode: "sum" }

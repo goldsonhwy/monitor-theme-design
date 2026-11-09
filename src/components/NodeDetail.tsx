@@ -14,6 +14,7 @@ import {
   axisBytes, axisTop, bytes, clockFor, despike, ewma, quarters, rateM, timeTicks, uptime,
 } from "@/lib/format"
 import { fetchHistory, inRanges, LATENCY_HOURS, RANGES, type History, type Point, type Series } from "@/lib/history"
+import { fillOfflineMetrics } from "@/lib/offline"
 import { knownPing, recordPing } from "@/lib/pings"
 import { getChartHash, setChartHash } from "@/lib/route"
 import { usePref } from "@/lib/prefs"
@@ -492,6 +493,7 @@ const CHARTS = [
   { key: "cpu", label: "CPU" },
   { key: "mem", label: "内存" },
   { key: "net", label: "网络" },
+  { key: "connections", label: "连接数" },
   { key: "disk", label: "硬盘" },
   { key: "ping", label: "延迟" },
 ]
@@ -532,8 +534,11 @@ export function NodeDetail({ node }: { node: Node }) {
 
   // The hub answers in seconds; the time axis requires milliseconds.
   const metricRows = useMemo(
-    () => (data?.metrics ?? []).map((m) => ({ ...m, ts: m.ts * 1_000 })),
-    [data],
+    () => fillOfflineMetrics(data?.metrics ?? [], data?.step, {
+      since: Math.floor(Date.now() / 1000) - hours * 3600,
+      until: !node.online ? Math.floor(Date.now() / 1000) : undefined,
+    }).map((m) => ({ ...m, ts: m.ts * 1_000 })),
+    [data, hours, node.online],
   )
 
   // Axis tops for the two panels with no capacity to measure against. CPU and a
@@ -599,12 +604,25 @@ export function NodeDetail({ node }: { node: Node }) {
         <Skeleton className="h-64 w-full" />
       ) : failed ? (
         <Failed message={failed} retry={retry} />
-      ) : data.metrics.length === 0 ? (
+      ) : metricRows.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">这段时间没有历史数据</p>
       ) : (
         // Faded while the next window is in flight, as the latency chart is.
         <div className={cn("min-w-0 transition-opacity", loading && "opacity-50")}>
-          {chart === "cpu" ? (
+          {chart === "connections" ? (
+            <Panel title={<>连接数 <span className="ml-3 text-chart-1">● TCP</span><span className="ml-2 text-chart-4">● UDP</span></>}>
+              <ResponsiveContainer>
+                <LineChart data={metricRows}>
+                  <CartesianGrid className="stroke-border" vertical={false} />
+                  <XAxis {...timeAxis(metricRows, hours)} />
+                  <YAxis domain={[0, axisTop(metricRows.reduce((max, point) => Math.max(max, point.tcp, point.udp), 0), 1, 10)]} width={Y_WIDTH} {...AXIS} />
+                  <Tooltip labelFormatter={label} formatter={(v, name) => [Number(v).toLocaleString("zh-CN"), name]} contentStyle={TIP} />
+                  <Line dataKey="tcp" name="TCP" stroke="var(--color-chart-1)" {...SERIES} />
+                  <Line dataKey="udp" name="UDP" stroke="var(--color-chart-4)" {...SERIES} />
+                </LineChart>
+              </ResponsiveContainer>
+            </Panel>
+          ) : chart === "cpu" ? (
             <Panel title="CPU 使用率">
               <ResponsiveContainer>
                 <AreaChart data={metricRows}>
@@ -640,8 +658,8 @@ export function NodeDetail({ node }: { node: Node }) {
               title={
                 <>
                   网络速率
-                  <span className="ml-3 text-chart-2">● 下行</span>
-                  <span className="ml-2 text-chart-3">● 上行</span>
+                  <span className="ml-3 text-[#A78BFA]">● 下载速率</span>
+                  <span className="ml-2 text-[#38BDF8]">● 上传速率</span>
                 </>
               }
             >
@@ -651,8 +669,8 @@ export function NodeDetail({ node }: { node: Node }) {
                   <XAxis {...timeAxis(metricRows, hours)} />
                   <YAxis domain={[0, tops.rate]} ticks={quarters(tops.rate)} tickFormatter={rateM} width={Y_WIDTH} {...AXIS} />
                   <Tooltip labelFormatter={label} formatter={(v) => rateM(Number(v))} contentStyle={TIP} />
-                  <Line dataKey="net_rx" name="下行" stroke="var(--color-chart-2)" {...SERIES} />
-                  <Line dataKey="net_tx" name="上行" stroke="var(--color-chart-3)" {...SERIES} />
+                  <Line dataKey="net_rx" name="下载速率" stroke="#A78BFA" {...SERIES} />
+                  <Line dataKey="net_tx" name="上传速率" stroke="#38BDF8" {...SERIES} />
                 </LineChart>
               </ResponsiveContainer>
             </Panel>
@@ -687,6 +705,39 @@ export function NodeDetail({ node }: { node: Node }) {
           <Latency id={node.id} hours={hours} className="h-64" onKnown={learn} />
         </div>
       )}
+    </div>
+  )
+}
+
+export function NetworkHistory({ id, hours, className }: { id: number; hours: 24 | 168; className?: string }) {
+  const { data, failed, loading, retry } = useHistory(id, hours, "metrics")
+  const rows = useMemo(() => fillOfflineMetrics(data?.metrics ?? [], data?.step).map((point) => ({ ...point, ts: point.ts * 1_000 })), [data])
+  const top = useMemo(() => axisTop(rows.reduce((max, point) => Math.max(max, point.net_rx, point.net_tx), 0), 1024, 1024), [rows])
+  const label = (ts: unknown) => new Date(Number(ts)).toLocaleString("zh-CN")
+
+  if (!data) return <Skeleton className={cn("h-64 w-full", className)} />
+  if (failed) return <Failed message={failed} retry={retry} />
+  if (!rows.length) return <p className="py-8 text-center text-sm text-muted-foreground">这段时间没有网络流量数据</p>
+
+  return (
+    <div className={cn("min-w-0 rounded-lg border border-border/80 bg-card p-3", loading && "opacity-60", className)}>
+      <h4 className="mb-2 text-xs font-semibold text-foreground">
+        网络流量 · {hours === 24 ? "最近 24 小时" : "最近 7 天"}
+        <span className="ml-3 text-[#A78BFA]">● 下载速率</span>
+        <span className="ml-2 text-[#38BDF8]">● 上传速率</span>
+      </h4>
+      <div className="h-56 min-w-0 w-full text-muted-foreground">
+        <ResponsiveContainer>
+          <LineChart data={rows}>
+            <CartesianGrid className="stroke-border" vertical={false} />
+            <XAxis {...timeAxis(rows, hours)} />
+            <YAxis domain={[0, top]} ticks={quarters(top)} tickFormatter={rateM} width={Y_WIDTH} {...AXIS} />
+            <Tooltip labelFormatter={label} formatter={(v) => rateM(Number(v))} contentStyle={TIP} />
+            <Line dataKey="net_rx" name="下载速率" stroke="#A78BFA" {...SERIES} />
+            <Line dataKey="net_tx" name="上传速率" stroke="#38BDF8" {...SERIES} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   )
 }

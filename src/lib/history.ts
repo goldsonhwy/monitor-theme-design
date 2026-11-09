@@ -1,9 +1,10 @@
 import { api } from "@/lib/api"
+export { latestCarrierPings, mergeCarrierPings } from "@/lib/pingMapping"
+export type { Carrier, LatestPing } from "@/lib/pingMapping"
 import { readPref } from "@/lib/prefs"
 
-// The history a chart draws, and the one place it is fetched from. In the main
-// chunk rather than the chart's, so a request can be on its way while the chart
-// itself is still loading.
+// The carrier table uses the six-hour window, while the chart page keeps its
+// independent reader-selected ranges.
 
 export type Point = {
   ts: number
@@ -12,6 +13,8 @@ export type Point = {
   disk_used: number
   net_rx: number
   net_tx: number
+  tcp: number
+  udp: number
 }
 
 // `latency` is the bucket's median round trip, null when every probe in it timed
@@ -28,17 +31,11 @@ export type PingPoint = {
 /** Probe names by id, sent alongside the samples they label. */
 export type Probes = Record<string, string>
 
-/**
- * Proportion of the whole window each probe lost, by id, absent for probes that
- * lost nothing. Sent because it cannot be derived here: every bucket's `loss` is
- * already a percentage of that bucket, so the sample counts it was divided by are
- * unavailable. Averaging them would weight a bucket holding one sample equally
- * with one holding twelve, and the window's first and last buckets are partial
- * regardless of what the probe does.
- */
+/** Optional whole-window loss values supplied by the hub. The carrier table uses
+ * the arithmetic average of each bucket's `ping.loss` instead. */
 export type Loss = Record<string, number>
 
-export type History = { metrics: Point[]; ping: PingPoint[]; probes: Probes; loss?: Loss }
+export type History = { metrics: Point[]; ping: PingPoint[]; probes: Probes; loss?: Loss; step?: number }
 
 export type Series = "metrics" | "ping"
 

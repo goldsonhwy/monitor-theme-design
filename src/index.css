@@ -155,11 +155,346 @@
   /* Native scrollbars, form controls and the search field's clear button follow
      the theme rather than the OS: a light scrollbar on the dark page glows. */
   html.dark { color-scheme: dark; }
-  body { @apply bg-background text-foreground antialiased; }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "PingFang SC", "苹方-简", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  button, input, textarea, select { font-family: inherit; }
 }
 
 /* Tabular figures keep live numbers from shifting as they update. */
-.tnum { font-variant-numeric: tabular-nums; }
+.tnum {
+  font-family: "PingFang SC", "苹方-简", "Microsoft YaHei", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.mobile-only { display: none; }
+
+.brand-glow {
+  color: #86efac;
+  text-shadow: 0 0 6px rgba(74, 222, 128, 0.72), 0 0 18px rgba(34, 197, 94, 0.45);
+  animation: brand-neon-breathe 3s ease-in-out infinite;
+}
+
+@keyframes brand-neon-breathe {
+  0%, 100% { text-shadow: 0 0 5px rgba(74, 222, 128, 0.58), 0 0 14px rgba(34, 197, 94, 0.30); }
+  50% { text-shadow: 0 0 8px rgba(134, 239, 172, 0.96), 0 0 24px rgba(34, 197, 94, 0.62); }
+}
+
+/* Keep the three carrier probe columns for wide 4K viewports. */
+.ping-resolution-column { display: none; }
+@media (min-width: 160rem) {
+  .ping-resolution-column { display: table-cell; }
+}
+
+@media (min-width: 640px) {
+  .desktop-polish > [data-slot="card-header"] {
+    gap: 1.25rem;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--muted) 34%, transparent), transparent);
+  }
+  .desktop-stat-list { gap: 0.5rem; flex-wrap: nowrap !important; }
+  .desktop-stat-list > [data-mobile-stat="年付费总和"] { margin-right: -0.25rem; }
+  .desktop-stat-list > div[data-mobile-stat] {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 2.25rem;
+    gap: 0.375rem;
+    padding: 0.375rem 0.5rem;
+    overflow: hidden;
+    border-color: color-mix(in srgb, var(--border) 75%, transparent);
+    background: color-mix(in srgb, var(--muted) 40%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--background) 50%, transparent);
+    transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+  }
+  .desktop-stat-list > div[data-mobile-stat]:hover {
+    border-color: color-mix(in srgb, #4ade80 46%, var(--border));
+    background: color-mix(in srgb, var(--muted) 60%, transparent);
+    transform: translateY(-1px);
+  }
+  .desktop-stat-list > div[data-mobile-stat] > span:first-child {
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .desktop-stat-list > div[data-mobile-stat] .mobile-stat-label { overflow: hidden; text-overflow: ellipsis; }
+  .desktop-stat-list > div[data-mobile-stat] .mobile-stat-down-value,
+  .desktop-stat-list > div[data-mobile-stat] .mobile-stat-up-value,
+  .desktop-stat-list > div[data-mobile-stat] > span.font-semibold { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .desktop-stat-list > div[data-mobile-stat] .mobile-stat-extra { flex-shrink: 0; }
+  .desktop-polish .mobile-table [data-slot="table-head"] {
+    height: 2.25rem;
+    background: color-mix(in srgb, var(--muted) 54%, transparent);
+    border-bottom-color: color-mix(in srgb, var(--border) 85%, transparent);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .desktop-polish .mobile-table [data-slot="table-body"] [data-slot="table-cell"] {
+    height: 2rem;
+    border-bottom-color: color-mix(in srgb, var(--border) 62%, transparent);
+    transition: background-color 120ms ease;
+  }
+  .desktop-polish .mobile-table [data-slot="table-body"] [data-slot="table-row"]:hover [data-slot="table-cell"] {
+    background: color-mix(in srgb, var(--muted) 40%, transparent);
+  }
+  .desktop-polish .mobile-table [data-slot="table-body"] [data-slot="table-row"]:last-child [data-slot="table-cell"] {
+    border-bottom-color: transparent;
+  }
+  .desktop-polish .mobile-table .mobile-name { font-weight: 600; }
+  .desktop-polish .mobile-table .mobile-speed .tnum,
+  .desktop-polish .mobile-table .mobile-ratio-content > span:first-child {
+    font-weight: 550;
+  }
+}
+
+/* Mobile uses the viewport, not the table's container, as its breakpoint. */
+@media (max-width: 639px) {
+  .mobile-hide { display: none !important; }
+  .mobile-stat-list > [data-mobile-stat="年付费总和"],
+  .mobile-stat-list > [data-mobile-stat="剩余价值"],
+  .mobile-stat-list > [data-mobile-stat="累计"],
+  .mobile-stat-list > [data-mobile-stat="本月"] { display: none !important; }
+  .mobile-stat-list > [data-mobile-stat="实时网速"],
+  .mobile-stat-list > [data-mobile-stat="本日"] {
+    display: grid !important;
+    width: 50%;
+    min-width: 0;
+    min-height: 34px;
+    grid-template-columns: 1fr;
+    gap: 2px;
+    padding: 5px 7px !important;
+    border-radius: 6px;
+  }
+  .mobile-stat-list > [data-mobile-stat="实时网速"] { border-radius: 6px 0 0 6px; }
+  .mobile-stat-list > [data-mobile-stat="本日"] { border-left: 0; border-radius: 0 6px 6px 0; }
+  .mobile-stat-list > [data-mobile-stat="实时网速"] .mobile-stat-label,
+  .mobile-stat-list > [data-mobile-stat="本日"] .mobile-stat-label {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 9px;
+    line-height: 1;
+  }
+  .mobile-stat-list > [data-mobile-stat="实时网速"] .mobile-stat-down-icon,
+  .mobile-stat-list > [data-mobile-stat="本日"] .mobile-stat-down-icon { grid-column: 1; grid-row: 2; }
+  .mobile-stat-list > [data-mobile-stat="实时网速"] .mobile-stat-down-value,
+  .mobile-stat-list > [data-mobile-stat="本日"] .mobile-stat-down-value { grid-column: 1; grid-row: 2; padding-left: 12px; }
+  .mobile-stat-list > [data-mobile-stat="实时网速"] .mobile-stat-up-icon,
+  .mobile-stat-list > [data-mobile-stat="本日"] .mobile-stat-up-icon { grid-column: 1; grid-row: 3; }
+  .mobile-stat-list > [data-mobile-stat="实时网速"] .mobile-stat-up-value,
+  .mobile-stat-list > [data-mobile-stat="本日"] .mobile-stat-up-value { grid-column: 1; grid-row: 3; padding-left: 12px; }
+  .mobile-stat-list > [data-mobile-stat="实时网速"] .mobile-stat-extra,
+  .mobile-stat-list > [data-mobile-stat="本日"] .mobile-stat-extra { display: none !important; }
+
+  .mobile-table-shell {
+    border-top: 0;
+    overflow: hidden !important;
+  }
+  .mobile-stat-list {
+    display: grid !important;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .mobile-stat-list > div[data-mobile-stat] {
+    display: grid !important;
+    width: 100%;
+    min-height: 38px;
+    grid-template-columns: 72px 14px minmax(0, 1fr) 14px minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px !important;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--muted) 68%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 65%, transparent);
+  }
+  .mobile-only { display: inline !important; }
+  .mobile-stat-label {
+    grid-column: 1;
+    text-align: left;
+    font-size: 10px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .mobile-stat-down-icon { grid-column: 2; }
+  .mobile-stat-down-value { grid-column: 3; min-width: 0; text-align: left; white-space: nowrap; font-size: 10px; }
+  .mobile-stat-up-icon { grid-column: 4; }
+  .mobile-stat-up-value { grid-column: 5; min-width: 0; text-align: left; white-space: nowrap; font-size: 10px; }
+  .mobile-stat-extra { display: none !important; }
+  .mobile-table-shell > [data-slot="table-container"] { overflow-x: hidden !important; }
+  .mobile-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .mobile-table [data-slot="table-head"],
+  .mobile-table [data-slot="table-cell"] {
+    min-width: 0 !important;
+    max-width: none !important;
+    overflow: hidden;
+    padding-inline: 3px !important;
+    font-size: 10px;
+  }
+  .mobile-table .mobile-status { width: 4% !important; }
+  .mobile-table .mobile-name { width: 26% !important; }
+  .mobile-table .mobile-ratio { width: 9% !important; }
+  .mobile-table .mobile-bar { width: 11% !important; }
+  .mobile-table .mobile-offline-resource { text-align: center !important; }
+  .mobile-table .mobile-speed { width: 14% !important; }
+  .mobile-table .mobile-speed > span { overflow: visible !important; justify-content: center !important; white-space: nowrap !important; }
+  .mobile-table .mobile-speed svg { display: none; }
+  .mobile-table .mobile-speed .tnum { overflow: visible !important; text-overflow: clip !important; white-space: nowrap !important; font-size: 9px; }
+  .mobile-ratio-content { gap: 0 !important; align-items: center !important; }
+  .mobile-sharebar { display: none; }
+  .mobile-table [data-slot="table-head"] {
+    height: 30px !important;
+    background: color-mix(in srgb, var(--muted) 72%, transparent);
+    font-size: 10px !important;
+    font-weight: 600;
+  }
+  .mobile-table [data-slot="table-head"]:first-child { border-radius: 8px 0 0 8px; }
+  .mobile-table [data-slot="table-cell"] {
+    padding-block: 2px !important;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    vertical-align: middle;
+  }
+  .mobile-table [data-slot="table-row"]:last-child [data-slot="table-cell"] { border-bottom: 0; }
+  .mobile-table [data-slot="table-body"] [data-slot="table-row"] { transition: background-color 120ms ease; }
+  .mobile-table [data-slot="table-body"] [data-slot="table-row"]:active { background: color-mix(in srgb, var(--muted) 78%, transparent); }
+  .mobile-table .mobile-name { font-size: 11px; font-weight: 600; }
+  .mobile-table .mobile-status > div { min-height: 18px; }
+  .mobile-table .mobile-bar { padding-inline: 4px !important; }
+  .mobile-table .mobile-speed { padding-inline: 2px !important; }
+  .mobile-table .mobile-speed .tnum { font-size: 9px; font-weight: 500; }
+  .mobile-table [data-slot="table-head"] { text-align: center !important; }
+  .mobile-table [data-slot="table-head"] > div { justify-content: center !important; gap: 0 !important; }
+  .mobile-table [data-slot="table-head"] span,
+  .mobile-table [data-slot="table-cell"] { text-overflow: ellipsis; }
+  .mobile-table [data-slot="table-cell"] > * { min-width: 0; max-width: 100%; }
+}
+
+/* Mobile summary: keep only live speed and today's traffic in one compact row. */
+@media (max-width: 639px) {
+  .mobile-heading { display: none !important; }
+  .mobile-stat-compact {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 0 !important;
+    width: 100% !important;
+    min-height: 46px;
+    padding: 0 !important;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--muted) 68%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 24%, transparent);
+  }
+  .mobile-stat-compact > [data-mobile-stat="年付费总和"],
+  .mobile-stat-compact > [data-mobile-stat="剩余价值"],
+  .mobile-stat-compact > [data-mobile-stat="累计"],
+  .mobile-stat-compact > [data-mobile-stat="本月"] { display: none !important; }
+  .mobile-stat-compact > [data-mobile-stat="实时网速"],
+  .mobile-stat-compact > [data-mobile-stat="本日"] {
+    display: grid !important;
+    flex: 1 1 0 !important;
+    width: 50% !important;
+    min-width: 0 !important;
+    min-height: 44px;
+    grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) !important;
+    grid-template-rows: auto auto !important;
+    align-items: center;
+    column-gap: 3px;
+    row-gap: 2px;
+    padding: 5px 6px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .mobile-stat-compact > [data-mobile-stat="本日"] {
+    border-left: 1px solid color-mix(in srgb, var(--border) 65%, transparent) !important;
+  }
+  .mobile-stat-compact .mobile-stat-label {
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
+    font-size: 9px;
+    line-height: 1;
+    text-align: left;
+  }
+  .mobile-stat-compact .mobile-stat-down-icon { grid-column: 1 !important; grid-row: 2 !important; }
+  .mobile-stat-compact .mobile-stat-down-value { grid-column: 2 !important; grid-row: 2 !important; padding-left: 0 !important; }
+  .mobile-stat-compact .mobile-stat-up-icon { grid-column: 3 !important; grid-row: 2 !important; }
+  .mobile-stat-compact .mobile-stat-up-value { grid-column: 4 !important; grid-row: 2 !important; padding-left: 0 !important; }
+  .mobile-stat-compact .mobile-stat-extra { display: none !important; }
+}
+
+/* Keep the server data rows on the download-rate type scale without changing
+   their existing cell padding or row sizing. */
+.mobile-table [data-node-row] [data-slot="table-cell"],
+.mobile-table [data-node-row] [data-slot="table-cell"] * {
+  font-family: "PingFang SC", "苹方-简", "Microsoft YaHei", system-ui, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 550 !important;
+}
+
+@media (max-width: 639px) {
+  .mobile-table [data-node-row] [data-slot="table-cell"],
+  .mobile-table [data-node-row] [data-slot="table-cell"] * {
+    font-size: 9px !important;
+    font-weight: 500 !important;
+  }
+}
+
+/* Keep every table label and number on the same PingFang-first stack. */
+table,
+table [data-slot="table-head"],
+table [data-slot="table-cell"],
+table [data-slot="table-head"] *,
+table [data-slot="table-cell"] * {
+  font-family: "PingFang SC", "苹方-简", "Microsoft YaHei", system-ui, sans-serif !important;
+}
+
+/* A quiet green inner light follows the exact cell under the pointer. */
+table [data-slot="table-cell"]:hover,
+table [data-slot="table-head"]:hover {
+  position: relative;
+  z-index: 1;
+  box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.44), inset 0 0 13px rgba(34, 197, 94, 0.14);
+  transition: box-shadow 180ms ease;
+}
+
+@keyframes cell-alert-pulse {
+  0%, 68%, 100% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 0 rgba(74, 222, 128, 0), 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+  78% {
+    background-color: rgba(34, 197, 94, 0.08);
+    box-shadow: inset 0 0 14px rgba(34, 197, 94, 0.24), 0 0 0 3px rgba(74, 222, 128, 0.34), 0 0 18px rgba(34, 197, 94, 0.38);
+  }
+  90% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 0 rgba(74, 222, 128, 0), 0 0 0 9px rgba(34, 197, 94, 0);
+  }
+}
+
+.cell-alert-pulse {
+  animation: cell-alert-pulse 3s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-glow, .cell-alert-pulse { animation: none; }
+}
+
+/* The phone summary keeps only live speed and today's traffic. */
+@media (max-width: 639px) {
+  .mobile-stat-header {
+    display: none !important;
+  }
+
+  .mobile-stat-compact > [data-mobile-stat-desktop-only="true"] {
+    display: none !important;
+  }
+}
 
 /* Filter rows scroll on narrow screens without a scrollbar taking a line of
    height from the controls above the chart. */
